@@ -6,7 +6,7 @@ Public OSS workspace. Artifacts, unbound by color.
 
 | Crate | Description |
 |-------|-------------|
-| [`descendit`](descendit/) | Deterministic structural metrics and loss scoring for Rust code |
+| [`descendit`](crates/descendit/) | Deterministic structural metrics and loss scoring for Rust code |
 | [`descendit-ra`](crates/descendit-ra/) | Semantic analysis backend using rust-analyzer |
 
 ## License
