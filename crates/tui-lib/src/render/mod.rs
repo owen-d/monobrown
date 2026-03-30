@@ -9,7 +9,7 @@
 //! 2. Each child reports its size requirement upward.
 //! 3. The parent allocates rectangles and calls `render` to paint.
 //!
-//! `tui-lib` now standardizes on the explicit [`LayoutRenderable`] contract
+//! `mb-tui` now standardizes on the explicit [`LayoutRenderable`] contract
 //! using [`Constraints`] and [`Size`].
 //!
 //! # Layout combinators
@@ -45,7 +45,7 @@
 //!
 //! ```rust,ignore
 //! use ratatui::{buffer::Buffer, layout::Rect};
-//! use tui_lib::render::{Constraints, LayoutRenderable, Size};
+//! use mb_tui::render::{Constraints, LayoutRenderable, Size};
 //!
 //! struct StatusPill {
 //!     label: String,
@@ -86,7 +86,7 @@
 //! # Scope
 //!
 //! This is Flutter-inspired, not a full clone of Flutter's box-constraint
-//! system. In practice, `tui-lib` currently standardizes on:
+//! system. In practice, `mb-tui` currently standardizes on:
 //!
 //! - constraints broadcast downward
 //! - sizes reported upward

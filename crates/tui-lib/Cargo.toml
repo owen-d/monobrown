@@ -1,5 +1,5 @@
 [package]
-name = "tui-lib"
+name = "mb-tui"
 version.workspace = true
 edition.workspace = true
 

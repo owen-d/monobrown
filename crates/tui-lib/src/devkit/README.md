@@ -1,7 +1,7 @@
 # TUI DevKit Principles
 
 A data-driven development kit for building TUI applications through an agent-human
-feedback loop. Lives in `tui-lib` as the `devkit` module.
+feedback loop. Lives in `mb-tui` as the `devkit` module.
 
 ## Core Idea
 
@@ -49,7 +49,7 @@ Scenarios use your domain types directly. No serialization format (TOML, JSON, Y
 This gives you type safety, IDE support, and zero translation cost.
 
 ```rust
-use tui_lib::devkit::{Scenario, ScenarioCatalog};
+use mb_tui::devkit::{Scenario, ScenarioCatalog};
 
 // Scenarios are declarative data construction — no assertions, no rendering, no side effects.
 let scenario = Scenario {
@@ -126,13 +126,13 @@ Do not build later stages until earlier ones are proven.
 ## Current Architecture
 
 ```
-tui-lib/src/devkit/
+mb-tui/src/devkit/
 ├── mod.rs          // module root, re-exports
 ├── scenario.rs     // Scenario<S>, ScenarioCatalog<S>
 ├── surface.rs      // Surface (off-screen render target)
 └── text.rs         // buffer → text/styled_text/ansi extraction
 
-Consumer tests (e.g., tui-lib's own spinner test):
+Consumer tests (e.g., mb-tui's own spinner test):
 tests/
 ├── devkit_spinner.rs           // scenario catalog + snapshot assertions
 └── devkit_spinner/snapshots/   // insta snapshot files

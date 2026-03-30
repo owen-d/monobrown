@@ -4,16 +4,16 @@ use std::rc::Rc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use tui_lib::devkit::Surface;
-use tui_lib::devkit::command_palette::demo_palette;
-use tui_lib::devkit::flame_graph::test_flame_graph;
-use tui_lib::render::{
+use mb_tui::devkit::Surface;
+use mb_tui::devkit::command_palette::demo_palette;
+use mb_tui::devkit::flame_graph::test_flame_graph;
+use mb_tui::render::{
     AlignRenderable, CenteredRenderable, ConstrainedRenderable, Constraints, FlexFit,
     HorizontalAlign, LayoutFlexColumn, LayoutFlexRow, LayoutPagerView, LayoutRenderable,
     OverflowBehavior, Size, TextOverflow, VerticalAlign, fit_text, text_width,
 };
-use tui_lib::widget::VimEditor;
-use tui_lib::widget::bar_selector::BarSelector;
+use mb_tui::widget::VimEditor;
+use mb_tui::widget::bar_selector::BarSelector;
 
 #[derive(Clone)]
 struct FixedLayoutBox {

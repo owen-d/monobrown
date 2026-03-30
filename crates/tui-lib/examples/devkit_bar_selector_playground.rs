@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crossterm::event::KeyCode;
-use tui_lib::devkit::playground;
-use tui_lib::widget::bar_selector::{BarSelector, render_bar_selector};
+use mb_tui::devkit::playground;
+use mb_tui::widget::bar_selector::{BarSelector, render_bar_selector};
 
 fn main() -> std::io::Result<()> {
     let state = BarSelector::new(&["Alpha", "Beta", "Gamma"]);

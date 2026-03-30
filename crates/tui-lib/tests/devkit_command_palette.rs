@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::command_palette::{
+use mb_tui::devkit::command_palette::{
     command_palette_interactive_catalog, command_palette_static_catalog,
 };
 

@@ -15,11 +15,11 @@ workspace = true
 [features]
 default = ["semantic"]
 semantic = ["dep:descendit-ra", "dep:notify"]
-explore = ["dep:tui-lib", "dep:crossterm", "dep:ratatui"]
+explore = ["dep:mb-tui", "dep:crossterm", "dep:ratatui"]
 
 [dependencies]
 descendit-ra = { workspace = true, optional = true }
-tui-lib = { workspace = true, optional = true }
+mb-tui = { workspace = true, optional = true }
 crossterm = { workspace = true, optional = true, features = ["event-stream"] }
 ratatui = { workspace = true, optional = true, features = ["unstable-rendered-line-info"] }
 syn = { version = "2.0", features = ["full", "parsing", "visit"] }

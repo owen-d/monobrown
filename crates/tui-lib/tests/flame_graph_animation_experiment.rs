@@ -6,7 +6,7 @@
 //!
 //! Run with:
 //! ```sh
-//! cargo test -p tui-lib --test flame_graph_animation_experiment -- --nocapture
+//! cargo test -p mb-tui --test flame_graph_animation_experiment -- --nocapture
 //! ```
 
 #![cfg(feature = "devkit")]
@@ -15,9 +15,9 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 
-use tui_lib::devkit::flame_graph::test_flame_graph;
-use tui_lib::devkit::frame_tape::FrameTape;
-use tui_lib::widget::flame_graph::{FlameGraph, render_flame_graph};
+use mb_tui::devkit::flame_graph::test_flame_graph;
+use mb_tui::devkit::frame_tape::FrameTape;
+use mb_tui::widget::flame_graph::{FlameGraph, render_flame_graph};
 
 // ---------------------------------------------------------------------------
 // Constants

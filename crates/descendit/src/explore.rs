@@ -1,7 +1,7 @@
 //! Interactive flamegraph exploration of code-loss heatmap results.
 //!
 //! Converts the hierarchical `HeatmapTreeNode` rollup into a `SpanNode`
-//! tree consumable by the `tui_lib` flame graph widget, then runs a
+//! tree consumable by the `mb_tui` flame graph widget, then runs a
 //! full-screen TUI for interactive drill-down.
 
 use std::cmp::Ordering;
@@ -22,14 +22,14 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
-use tui_lib::highlight::highlight_code;
-use tui_lib::input::modal::{self, KeyBinding, ModalInput};
-use tui_lib::input::{KeyResult, RenderScheduler, RenderStep, apply_render_effect};
-use tui_lib::render::{LayoutPagerView, LayoutRenderable, LayoutRenderableItem, render_pane_frame};
-use tui_lib::widget::flame_graph::{
+use mb_tui::highlight::highlight_code;
+use mb_tui::input::modal::{self, KeyBinding, ModalInput};
+use mb_tui::input::{KeyResult, RenderScheduler, RenderStep, apply_render_effect};
+use mb_tui::render::{LayoutPagerView, LayoutRenderable, LayoutRenderableItem, render_pane_frame};
+use mb_tui::widget::flame_graph::{
     CostType, FlameGraph, SpanId, SpanNode, SpanNodeBuilder, render_flame_graph_mut,
 };
-use tui_lib::widget::hotkey::HotkeyBarRenderable;
+use mb_tui::widget::hotkey::HotkeyBarRenderable;
 
 use crate::HeatmapEntry;
 use crate::metrics::ScopeSegment;
@@ -507,7 +507,7 @@ fn details_document_no_hotspot() -> DetailsDocument {
         focus_line: 0,
         header_lines: vec![Line::from(Span::styled(
             "No hotspot data is available for the selected span.",
-            Style::default().fg(tui_lib::theme::dim()),
+            Style::default().fg(mb_tui::theme::dim()),
         ))],
         lines: Vec::new(),
     }
@@ -523,7 +523,7 @@ fn details_document_codebase_level(hotspot: &SpanHotspot) -> DetailsDocument {
             Line::default(),
             Line::from(Span::styled(
                 "This hotspot is aggregated at the codebase level, so there is no single source snippet to load.",
-                Style::default().fg(tui_lib::theme::dim()),
+                Style::default().fg(mb_tui::theme::dim()),
             )),
         ],
         lines: Vec::new(),
@@ -545,7 +545,7 @@ fn details_document_from_source(
                 Line::default(),
                 Line::from(Span::styled(
                     "Loading source...",
-                    Style::default().fg(tui_lib::theme::dim()),
+                    Style::default().fg(mb_tui::theme::dim()),
                 )),
             ],
             lines: Vec::new(),
@@ -586,7 +586,7 @@ fn details_document_from_source(
                 Line::default(),
                 Line::from(Span::styled(
                     error.clone(),
-                    Style::default().fg(tui_lib::theme::error()),
+                    Style::default().fg(mb_tui::theme::error()),
                 )),
             ],
             lines: Vec::new(),
@@ -599,16 +599,16 @@ fn hotspot_summary_line(hotspot: &SpanHotspot) -> Line<'static> {
         Span::styled(
             format!("hotspot {} ", hotspot.function_name),
             Style::default()
-                .fg(tui_lib::theme::text())
+                .fg(mb_tui::theme::text())
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("[{}] ", hotspot.dimension),
-            Style::default().fg(tui_lib::theme::warning()),
+            Style::default().fg(mb_tui::theme::warning()),
         ),
         Span::styled(
             format!("loss +{:.4}", hotspot.responsibility),
-            Style::default().fg(tui_lib::theme::focus()),
+            Style::default().fg(mb_tui::theme::focus()),
         ),
     ])
 }
@@ -623,9 +623,9 @@ fn hotspot_location_line(hotspot: &SpanHotspot) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             format!("{}:{} ", hotspot.file, hotspot.line),
-            Style::default().fg(tui_lib::theme::dim()),
+            Style::default().fg(mb_tui::theme::dim()),
         ),
-        Span::styled(detail, Style::default().fg(tui_lib::theme::text())),
+        Span::styled(detail, Style::default().fg(mb_tui::theme::text())),
     ])
 }
 
@@ -637,10 +637,10 @@ fn code_line(
 ) -> Line<'static> {
     let prefix_style = if is_hotspot_line {
         Style::default()
-            .fg(tui_lib::theme::warning())
+            .fg(mb_tui::theme::warning())
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(tui_lib::theme::dim())
+        Style::default().fg(mb_tui::theme::dim())
     };
     let code_emphasis = if is_hotspot_line {
         Some(Modifier::BOLD)
@@ -667,9 +667,9 @@ fn code_line(
     } else {
         let style = match code_emphasis {
             Some(modifier) => Style::default()
-                .fg(tui_lib::theme::text())
+                .fg(mb_tui::theme::text())
                 .add_modifier(modifier),
-            None => Style::default().fg(tui_lib::theme::text()),
+            None => Style::default().fg(mb_tui::theme::text()),
         };
         spans.push(Span::styled(raw_line.to_string(), style));
     }
@@ -1109,7 +1109,7 @@ fn render_screen(app: &mut ExploreApp, area: Rect, buf: &mut Buffer) {
 
     let title = Paragraph::new(Line::from(Span::styled(
         " code-loss explore",
-        Style::default().fg(tui_lib::theme::warning()),
+        Style::default().fg(mb_tui::theme::warning()),
     )));
     Widget::render(title, outer[0], buf);
 
@@ -1248,7 +1248,7 @@ mod tests {
     use crossterm::event::{KeyEventKind, KeyEventState};
     use ratatui::buffer::Buffer;
     use tempfile::tempdir;
-    use tui_lib::devkit::buffer_to_text;
+    use mb_tui::devkit::buffer_to_text;
 
     fn entry(
         function_name: &str,
@@ -1821,7 +1821,7 @@ mod tests {
         assert_eq!(step.action, ExploreAction::Continue);
         assert!(matches!(
             step.effect,
-            Some(tui_lib::input::RenderEffect::ScheduleRender)
+            Some(mb_tui::input::RenderEffect::ScheduleRender)
         ));
     }
 }

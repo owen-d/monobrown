@@ -13,10 +13,10 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 
-use tui_lib::devkit::buffer_to_text;
-use tui_lib::devkit::color::{color_to_rgb, contrast_ratio, rgb_distance};
-use tui_lib::devkit::flame_graph::{test_cost_types, test_flame_graph};
-use tui_lib::widget::flame_graph::{
+use mb_tui::devkit::buffer_to_text;
+use mb_tui::devkit::color::{color_to_rgb, contrast_ratio, rgb_distance};
+use mb_tui::devkit::flame_graph::{test_cost_types, test_flame_graph};
+use mb_tui::widget::flame_graph::{
     CostType, FlameGraph, FlameRow, RowKind, SpanNode, SpanNodeBuilder, render_flame_graph,
 };
 
@@ -683,7 +683,7 @@ fn color_wcag_aa_large_against_black_and_dark_gray() {
 /// This test verifies that the adaptive choice produces adequate contrast.
 #[test]
 fn color_labels_readable_against_bar_segments() {
-    use tui_lib::devkit::color::relative_luminance;
+    use mb_tui::devkit::color::relative_luminance;
 
     let cost_types = test_cost_types();
 

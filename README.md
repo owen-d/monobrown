@@ -11,7 +11,7 @@
 |-------|-------------|
 | [`descendit`](crates/descendit/) | "Where we're going, we don't need code!" Gradient descent for application code: deterministic structural metrics and loss scoring |
 | [`descendit-ra`](crates/descendit-ra/) | Semantic analysis backend using rust-analyzer |
-| [`tui-lib`](crates/tui-lib/) | TUI toolkit: themed widgets, markdown, syntax highlighting, flamegraphs |
+| [`mb-tui`](crates/tui-lib/) | TUI toolkit: themed widgets, markdown, syntax highlighting, flamegraphs |
 
 ## License
 

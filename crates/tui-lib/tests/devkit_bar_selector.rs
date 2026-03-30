@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::bar_selector::bar_selector_catalog;
+use mb_tui::devkit::bar_selector::bar_selector_catalog;
 
 #[test]
 fn bar_selector_wide_snapshots() {

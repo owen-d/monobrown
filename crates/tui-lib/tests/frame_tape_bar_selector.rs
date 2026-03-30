@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use tui_lib::devkit::frame_tape::FrameTape;
-use tui_lib::widget::bar_selector::{BarSelector, render_bar_selector};
+use mb_tui::devkit::frame_tape::FrameTape;
+use mb_tui::widget::bar_selector::{BarSelector, render_bar_selector};
 
 const WIDTH: u16 = 30;
 const HEIGHT: u16 = 10;

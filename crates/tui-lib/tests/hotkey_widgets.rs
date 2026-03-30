@@ -1,7 +1,7 @@
-use tui_lib::devkit::Surface;
-use tui_lib::input::modal::{HotkeyHint, HotkeySection};
-use tui_lib::render::{Constraints, LayoutRenderable};
-use tui_lib::widget::hotkey::{HelpPaneRenderable, HotkeyBarRenderable, format_hint_string};
+use mb_tui::devkit::Surface;
+use mb_tui::input::modal::{HotkeyHint, HotkeySection};
+use mb_tui::render::{Constraints, LayoutRenderable};
+use mb_tui::widget::hotkey::{HelpPaneRenderable, HotkeyBarRenderable, format_hint_string};
 
 #[test]
 fn format_hint_string_joins_key_action_pairs() {

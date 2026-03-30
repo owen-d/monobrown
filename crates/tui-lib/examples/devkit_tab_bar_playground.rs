@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use tui_lib::devkit::{playground, tab_bar_demo};
+use mb_tui::devkit::{playground, tab_bar_demo};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(

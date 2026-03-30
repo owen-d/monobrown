@@ -4,8 +4,8 @@ use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use tui_lib::devkit::playground;
-use tui_lib::render::{Anchor, Constraints, LayoutRenderable, Size, StackRenderable};
+use mb_tui::devkit::playground;
+use mb_tui::render::{Anchor, Constraints, LayoutRenderable, Size, StackRenderable};
 
 const LINE_COUNT: usize = 50;
 const OVERLAY_WIDTH: u16 = 20;

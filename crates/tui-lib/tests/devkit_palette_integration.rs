@@ -11,9 +11,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
-use tui_lib::command_palette::{CommandPaletteState, HotkeyBinding, PaletteItem};
-use tui_lib::devkit::{PlaygroundController, PlaygroundMode, Scenario, ScenarioCatalog};
-use tui_lib::input::KeyResult;
+use mb_tui::command_palette::{CommandPaletteState, HotkeyBinding, PaletteItem};
+use mb_tui::devkit::{PlaygroundController, PlaygroundMode, Scenario, ScenarioCatalog};
+use mb_tui::input::KeyResult;
 
 // ---------------------------------------------------------------------------
 // Wiring (mirrors the example, but minimal)

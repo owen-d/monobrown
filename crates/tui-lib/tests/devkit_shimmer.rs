@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::simple_widgets::shimmer_catalog;
+use mb_tui::devkit::simple_widgets::shimmer_catalog;
 
 #[test]
 fn shimmer_snapshots() {

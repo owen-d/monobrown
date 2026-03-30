@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::simple_widgets::{labeled_spinner_catalog, spinner_catalog};
+use mb_tui::devkit::simple_widgets::{labeled_spinner_catalog, spinner_catalog};
 
 #[test]
 fn spinner_snapshots() {

@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::vim_editor::{vim_editor_interactive_catalog, vim_editor_static_catalog};
+use mb_tui::devkit::vim_editor::{vim_editor_interactive_catalog, vim_editor_static_catalog};
 
 #[test]
 fn vim_editor_static_snapshots() {

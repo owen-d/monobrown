@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use ratatui::layout::Rect;
-use tui_lib::devkit::Surface;
-use tui_lib::devkit::flame_graph::test_flame_graph;
-use tui_lib::widget::flame_graph::{BarStyle, render_flame_graph};
+use mb_tui::devkit::Surface;
+use mb_tui::devkit::flame_graph::test_flame_graph;
+use mb_tui::widget::flame_graph::{BarStyle, render_flame_graph};
 
 fn make_key(code: KeyCode) -> KeyEvent {
     KeyEvent {
@@ -19,7 +19,7 @@ fn make_key(code: KeyCode) -> KeyEvent {
     }
 }
 
-fn finish_animations(fg: &mut tui_lib::widget::flame_graph::FlameGraph) {
+fn finish_animations(fg: &mut mb_tui::widget::flame_graph::FlameGraph) {
     for _ in 0..96 {
         fg.tick(Duration::from_millis(16));
     }

@@ -2,7 +2,7 @@
 //!
 //! Pure state machine: accepts `KeyEvent`, returns `EditorEffect`.
 //! Editing remains unit-testable in isolation; the render adapter lives here so
-//! the widget can participate in width-first layout like the rest of `tui-lib`.
+//! the widget can participate in width-first layout like the rest of `mb-tui`.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{

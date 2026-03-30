@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use tui_lib::devkit::flame_graph::test_flame_graph;
-use tui_lib::devkit::playground;
-use tui_lib::widget::flame_graph::{BarStyle, FlameGraph, render_flame_graph};
+use mb_tui::devkit::flame_graph::test_flame_graph;
+use mb_tui::devkit::playground;
+use mb_tui::widget::flame_graph::{BarStyle, FlameGraph, render_flame_graph};
 
 fn main() -> std::io::Result<()> {
     let state = test_flame_graph();

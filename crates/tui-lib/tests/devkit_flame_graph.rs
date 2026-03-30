@@ -1,6 +1,6 @@
 #![cfg(feature = "devkit")]
 
-use tui_lib::devkit::flame_graph::flame_graph_interactive_catalog;
+use mb_tui::devkit::flame_graph::flame_graph_interactive_catalog;
 
 #[test]
 fn flame_graph_wide_snapshots() {

@@ -3,25 +3,25 @@
 /// own explorer/live state.
 use std::time::Duration;
 
-use tui_lib::devkit::bar_selector::bar_selector_catalog;
-use tui_lib::devkit::command_palette::command_palette_interactive_catalog;
-use tui_lib::devkit::dispatch_demo;
-use tui_lib::devkit::flame_graph::flame_graph_interactive_catalog;
-use tui_lib::devkit::flashcard_demo;
-use tui_lib::devkit::gauge_demo;
-use tui_lib::devkit::hotkey_coach_demo as hotkey_demo;
-use tui_lib::devkit::progress_demo;
-use tui_lib::devkit::queue_demo;
-use tui_lib::devkit::rearview_mirror_demo as rearview_demo;
-use tui_lib::devkit::simple_widgets::{
+use mb_tui::devkit::bar_selector::bar_selector_catalog;
+use mb_tui::devkit::command_palette::command_palette_interactive_catalog;
+use mb_tui::devkit::dispatch_demo;
+use mb_tui::devkit::flame_graph::flame_graph_interactive_catalog;
+use mb_tui::devkit::flashcard_demo;
+use mb_tui::devkit::gauge_demo;
+use mb_tui::devkit::hotkey_coach_demo as hotkey_demo;
+use mb_tui::devkit::progress_demo;
+use mb_tui::devkit::queue_demo;
+use mb_tui::devkit::rearview_mirror_demo as rearview_demo;
+use mb_tui::devkit::simple_widgets::{
     ShimmerDemo, render_shimmer, render_spinner, shimmer_catalog,
 };
-use tui_lib::devkit::slider_demo;
-use tui_lib::devkit::sparkline_demo;
-use tui_lib::devkit::stepper_demo;
-use tui_lib::devkit::tab_bar_demo as tab_demo;
-use tui_lib::devkit::unified::{animated_entry, animated_interactive_entry, entry, run_unified};
-use tui_lib::devkit::vim_editor::vim_editor_interactive_catalog;
+use mb_tui::devkit::slider_demo;
+use mb_tui::devkit::sparkline_demo;
+use mb_tui::devkit::stepper_demo;
+use mb_tui::devkit::tab_bar_demo as tab_demo;
+use mb_tui::devkit::unified::{animated_entry, animated_interactive_entry, entry, run_unified};
+use mb_tui::devkit::vim_editor::vim_editor_interactive_catalog;
 
 // ===========================================================================
 // Main

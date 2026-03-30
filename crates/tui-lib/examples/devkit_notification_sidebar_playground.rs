@@ -5,10 +5,10 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 
-use tui_lib::devkit::playground;
-use tui_lib::render::LayoutRenderable;
-use tui_lib::theme;
-use tui_lib::widget::queue_list::QueueList;
+use mb_tui::devkit::playground;
+use mb_tui::render::LayoutRenderable;
+use mb_tui::theme;
+use mb_tui::widget::queue_list::QueueList;
 
 // ---------------------------------------------------------------------------
 // State

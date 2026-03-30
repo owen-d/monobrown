@@ -7,9 +7,9 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use tui_lib::devkit::flame_graph::{generate_palette, test_span_tree};
-use tui_lib::devkit::playground;
-use tui_lib::widget::flame_graph::{FlameGraph, render_flame_graph};
+use mb_tui::devkit::flame_graph::{generate_palette, test_span_tree};
+use mb_tui::devkit::playground;
+use mb_tui::widget::flame_graph::{FlameGraph, render_flame_graph};
 
 const COST_NAMES: [&str; 5] = ["cpu", "io", "mem", "gc", "net"];
 

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use tui_lib::devkit::{playground, rearview_mirror_demo};
+use mb_tui::devkit::{playground, rearview_mirror_demo};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(

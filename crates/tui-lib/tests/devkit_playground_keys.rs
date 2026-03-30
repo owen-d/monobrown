@@ -4,10 +4,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
-use tui_lib::devkit::vim_editor::{apply_vim_editor, render_vim_editor};
-use tui_lib::devkit::{Action, PlaygroundController, PlaygroundMode, Scenario, ScenarioCatalog};
-use tui_lib::input::{KeyResult, RenderEffect};
-use tui_lib::widget::VimEditor;
+use mb_tui::devkit::vim_editor::{apply_vim_editor, render_vim_editor};
+use mb_tui::devkit::{Action, PlaygroundController, PlaygroundMode, Scenario, ScenarioCatalog};
+use mb_tui::input::{KeyResult, RenderEffect};
+use mb_tui::widget::VimEditor;
 
 // ---------------------------------------------------------------------------
 // Test state types

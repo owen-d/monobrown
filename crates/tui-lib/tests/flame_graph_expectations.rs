@@ -11,11 +11,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifi
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
-use tui_lib::devkit::buffer_to_text;
-use tui_lib::devkit::color::color_to_rgb;
-use tui_lib::devkit::flame_graph::{test_cost_types, test_flame_graph};
-use tui_lib::devkit::frame_tape::FrameTape;
-use tui_lib::widget::flame_graph::{FlameGraph, RowKind, render_flame_graph};
+use mb_tui::devkit::buffer_to_text;
+use mb_tui::devkit::color::color_to_rgb;
+use mb_tui::devkit::flame_graph::{test_cost_types, test_flame_graph};
+use mb_tui::devkit::frame_tape::FrameTape;
+use mb_tui::widget::flame_graph::{FlameGraph, RowKind, render_flame_graph};
 
 const WIDTH: u16 = 120;
 const HEIGHT: u16 = 12;
@@ -192,7 +192,7 @@ fn e2_all_child_labels_visible_in_one_level() {
         if let Some(cell) = label_cell {
             let fg_rgb = color_to_rgb(cell.fg).unwrap_or((0, 0, 0));
             let bg_rgb = color_to_rgb(cell.bg).unwrap_or(TERMINAL_BG);
-            let ratio = tui_lib::devkit::color::contrast_ratio(fg_rgb, bg_rgb);
+            let ratio = mb_tui::devkit::color::contrast_ratio(fg_rgb, bg_rgb);
             assert!(
                 ratio >= 3.0,
                 "Label on row {y} has fg={fg_rgb:?} bg={bg_rgb:?} with contrast \
@@ -967,7 +967,7 @@ fn focus_e7_jk_stays_focused() {
 /// E8: Path child renders first among siblings (for expanded ancestors).
 #[test]
 fn focus_e8_path_child_first_among_siblings() {
-    use tui_lib::widget::flame_graph::SpanNodeBuilder;
+    use mb_tui::widget::flame_graph::SpanNodeBuilder;
 
     // Build a tree where the path goes through a non-first-by-cost child
     // to verify path-first ordering at the ancestor level.

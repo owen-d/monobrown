@@ -1,8 +1,8 @@
 use ratatui::layout::Rect;
 
-use tui_lib::devkit::Surface;
-use tui_lib::render::{Constraints, LayoutRenderable};
-use tui_lib::widget::bar_selector::{BarSelector, render_bar_selector};
+use mb_tui::devkit::Surface;
+use mb_tui::render::{Constraints, LayoutRenderable};
+use mb_tui::widget::bar_selector::{BarSelector, render_bar_selector};
 
 #[test]
 fn measured_height_tracks_layout_mode() {

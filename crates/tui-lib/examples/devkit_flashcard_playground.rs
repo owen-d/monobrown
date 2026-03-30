@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use tui_lib::devkit::{flashcard_demo, playground};
+use mb_tui::devkit::{flashcard_demo, playground};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(

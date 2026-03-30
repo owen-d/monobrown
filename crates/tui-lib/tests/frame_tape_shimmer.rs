@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use tui_lib::devkit::frame_tape::FrameTape;
-use tui_lib::devkit::simple_widgets::{ShimmerDemo, render_shimmer};
+use mb_tui::devkit::frame_tape::FrameTape;
+use mb_tui::devkit::simple_widgets::{ShimmerDemo, render_shimmer};
 
 const TEXT: &str = "Loading";
 const WIDTH: u16 = 20;
