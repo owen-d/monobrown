@@ -116,4 +116,4 @@ Most improvement lands in epochs 1-2. By epoch 4+, you're in diminishing returns
 
 ## License
 
-Apache 2.0 — see [LICENSE](../LICENSE).
+Apache 2.0 — see [LICENSE](../../LICENSE).
