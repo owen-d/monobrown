@@ -1,0 +1,7 @@
+[post-start]
+deps = """
+[ -d {{ main_worktree_path }}/target/debug/deps ] && [ ! -e target ] &&
+mkdir -p target/debug/deps &&
+cp -c {{ main_worktree_path }}/target/debug/deps/*.rlib {{ main_worktree_path }}/target/debug/deps/*.rmeta target/debug/deps/ &&
+cp -cR {{ main_worktree_path }}/target/debug/.fingerprint {{ main_worktree_path }}/target/debug/build target/debug/
+"""
