@@ -1,0 +1,7 @@
+[[workspace]]
+allow-branch = ["main"]
+consolidate-commits = true
+consolidate-pushes = true
+tag-name = "v{{version}}"
+push-remote = "origin"
+publish = true

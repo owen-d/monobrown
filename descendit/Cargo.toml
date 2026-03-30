@@ -1,0 +1,37 @@
+[package]
+name = "descendit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic structural metrics and loss scoring for Rust code"
+readme = "README.md"
+keywords = ["code-quality", "metrics", "refactoring", "loss-function", "static-analysis"]
+categories = ["development-tools", "command-line-utilities"]
+
+[lints]
+workspace = true
+
+[features]
+default = ["semantic"]
+semantic = ["dep:descendit-ra", "dep:notify"]
+
+[dependencies]
+descendit-ra = { workspace = true, optional = true }
+syn = { version = "2.0", features = ["full", "parsing", "visit"] }
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
+walkdir = "2.5.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+notify = { version = "8.2.0", optional = true }
+
+[dev-dependencies]
+assert_cmd = "2"
+insta = "1.43.2"
+tempfile = "3.23.0"
+
+[[bin]]
+name = "descendit"
+path = "src/main.rs"

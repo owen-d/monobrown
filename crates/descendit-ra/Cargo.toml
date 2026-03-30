@@ -1,0 +1,24 @@
+[package]
+name = "descendit-ra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Semantic analysis backend for descendit using rust-analyzer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+ra_ap_hir = "0.0.324"
+ra_ap_ide = "0.0.324"
+ra_ap_ide_db = "0.0.324"
+ra_ap_load-cargo = "0.0.324"
+ra_ap_project_model = "0.0.324"
+ra_ap_vfs = "0.0.324"
+ra_ap_syntax = "0.0.324"
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
