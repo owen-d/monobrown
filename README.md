@@ -9,7 +9,7 @@
 
 | Crate | Description |
 |-------|-------------|
-| [`descendit`](crates/descendit/) | Deterministic structural metrics and loss scoring for Rust code |
+| [`descendit`](crates/descendit/) | "Where we're going, we don't need code!" Gradient descent for application code: deterministic structural metrics and loss scoring |
 | [`descendit-ra`](crates/descendit-ra/) | Semantic analysis backend using rust-analyzer |
 | [`tui-lib`](crates/tui-lib/) | TUI toolkit: themed widgets, markdown, syntax highlighting, flamegraphs |
 
