@@ -1,0 +1,19 @@
+---
+source: crates/tui-lib/src/devkit/scenario.rs
+expression: text
+---
+┌ Command Palette ───────────────────────────────┐
+│> git                                           │
+│────────────────────────────────────────────────│
+│  Git: Commit                             Ctrl+G│
+│  Git: Push                                     │
+│> Git: Pull                                     │
+│  Git: Branch                                   │
+│                                                │
+│                                                │
+│                                                │
+│                                                │
+│                                                │
+│                                                │
+│[Root]                                          │
+└────────────────────────────────────────────────┘

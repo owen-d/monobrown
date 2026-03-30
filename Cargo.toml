@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["descendit", "crates/descendit-ra"]
+members = ["descendit", "crates/descendit-ra", "crates/tui-lib"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,6 +14,16 @@ all = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 descendit-ra = { path = "crates/descendit-ra", version = "0.1.0" }
+tui-lib = { path = "crates/tui-lib", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+crossterm = "0.29.0"
+insta = "1.43.2"
+libc = "0.2.175"
+pulldown-cmark = "0.10"
+ratatui = "0.30.0"
+similar = "2.7.0"
+syntect = { version = "5", default-features = false, features = ["default-themes", "default-syntaxes", "regex-onig", "plist-load"] }
+two-face = { version = "0.5", default-features = false, features = ["syntect-default-onig"] }
+unicode-width = "0.2"

@@ -1,0 +1,9 @@
+---
+source: crates/tui-lib/src/devkit/scenario.rs
+assertion_line: 198
+expression: text
+---
+┌ Vim Editor ────────────────────────────────────┐
+│mode:NORMAL pending:- cursor:4                  │
+│hello                                           │
+└────────────────────────────────────────────────┘

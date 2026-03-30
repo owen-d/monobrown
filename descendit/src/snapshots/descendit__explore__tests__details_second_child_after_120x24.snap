@@ -1,0 +1,28 @@
+---
+source: crates/code-loss/src/explore.rs
+expression: text
+---
+ code-loss explore
+▾ app             ╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸┌details src/lib.rs:20*────────────────────────────────────────────┐
+    alpha         ━                                 │hotspot beta [duplication] loss +0.5000                           │
+    beta          ━                                 │src/lib.rs:20 clone group                                         │
+                  ■duplication:100%                 │   11 // filler                                                   │
+                                                    │   12 // filler                                                   │
+                                                    │   13 // filler                                                   │
+                                                    │   14 // filler                                                   │
+                                                    │   15 // filler                                                   │
+                                                    │   16 // filler                                                   │
+                                                    │   17 // filler                                                   │
+                                                    │   18 fn beta() {                                                 │
+                                                    │   19     if duplicate_logic() {                                  │
+                                                    │>  20         duplicated_branch();                                │
+                                                    │   21     }                                                       │
+                                                    │   22 }                                                           │
+                                                    │   23 // filler                                                   │
+                                                    │   24 // filler                                                   │
+                                                    │   25 // filler                                                   │
+                                                    │   26 // filler                                                   │
+                                                    │   27 // filler                                                   │
+                                                    │   28 // filler                                                   │
+                                                    └──────────────────────────────────────────────────────────────────┘
+q:quit  j/k:move  h/l:collapse/expand  f/F:focus  enter:legend  d:details  u/r:undo/redo  PgDn:page down  PgUp:page up

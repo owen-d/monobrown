@@ -1,0 +1,28 @@
+---
+source: crates/code-loss/src/explore.rs
+expression: text
+---
+ code-loss explore
+  codebase        ╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸┌details coupling_density*─────────────────────────────────────────┐
+                  ■bloat:100%                       │hotspot coupling_density [coupling_density] loss +0.3000          │
+                                                    │<codebase>:0 cross-module edges                                   │
+                                                    │                                                                  │
+                                                    │This hotspot is aggregated at the codebase level, so there is no s│
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    │                                                                  │
+                                                    └──────────────────────────────────────────────────────────────────┘
+q:quit  j/k:move  h/l:collapse/expand  f/F:focus  enter:legend  d:details  u/r:undo/redo  PgDn:page down  PgUp:page up

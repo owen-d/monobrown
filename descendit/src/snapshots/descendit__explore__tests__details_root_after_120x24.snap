@@ -1,0 +1,28 @@
+---
+source: crates/code-loss/src/explore.rs
+expression: text
+---
+ code-loss explore
+▸ app             ╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸┌details src/lib.rs:4*─────────────────────────────────────────────┐
+                  ■bloat:58% +1 types 42%           │hotspot alpha [bloat] loss +0.7000                                │
+                                                    │src/lib.rs:4 20 lines                                             │
+                                                    │    1 // filler                                                   │
+                                                    │    2 // filler                                                   │
+                                                    │    3 // filler                                                   │
+                                                    │>   4 fn alpha() {                                                │
+                                                    │    5     let mut total = 0;                                      │
+                                                    │    6     total += expensive_call();                              │
+                                                    │    7 }                                                           │
+                                                    │    8 // filler                                                   │
+                                                    │    9 // filler                                                   │
+                                                    │   10 // filler                                                   │
+                                                    │   11 // filler                                                   │
+                                                    │   12 // filler                                                   │
+                                                    │   13 // filler                                                   │
+                                                    │   14 // filler                                                   │
+                                                    │   15 // filler                                                   │
+                                                    │   16 // filler                                                   │
+                                                    │   17 // filler                                                   │
+                                                    │   18 fn beta() {                                                 │
+                                                    └──────────────────────────────────────────────────────────────────┘
+q:quit  j/k:move  h/l:collapse/expand  f/F:focus  enter:legend  d:details  u/r:undo/redo  PgDn:page down  PgUp:page up

@@ -15,6 +15,8 @@
 //! println!("max complexity: {}", report.summary.max_cyclomatic);
 //! ```
 
+#[cfg(feature = "explore")]
+pub mod explore;
 pub mod aggregation;
 pub mod analyze;
 pub mod calibration;

@@ -1,0 +1,28 @@
+---
+source: crates/code-loss/src/explore.rs
+expression: text
+---
+ code-loss explore
+▸ app              ╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
+                   ■bloat:58% ■duplication:42%
+
+
+
+
+
+
+
+
+
+
+
+
+
+┌details src/lib.rs:4*─────────────────────────────────────────────────┐
+│hotspot alpha [bloat] loss +0.7000                                    │
+│src/lib.rs:4 20 lines                                                 │
+│    3 // filler                                                       │
+│>   4 fn alpha() {                                                    │
+│    5     let mut total = 0;                                          │
+└──────────────────────────────────────────────────────────────────────┘
+q:quit  j/k:move  h/l:collapse/expand  f/F:focus  enter:legend

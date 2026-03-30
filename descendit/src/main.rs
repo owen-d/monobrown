@@ -177,6 +177,25 @@ enum Command {
         #[arg(long)]
         dump_default: bool,
     },
+    /// Interactive flamegraph explorer for loss drill-down.
+    ///
+    /// Renders an interactive TUI showing per-item loss attribution with
+    /// split/stacked detail views and syntax-highlighted source preview.
+    #[cfg(feature = "explore")]
+    Explore {
+        /// Paths to analyze. Multiple paths use shared normalization.
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// Custom compliance policy JSON file (optional).
+        #[arg(long)]
+        policy: Option<PathBuf>,
+        /// Path to semantic data JSON (skip backend generation when provided).
+        #[arg(long = "semantic-path")]
+        semantic_path: Option<PathBuf>,
+        /// Semantic enrichment mode: require generated data, try and fall back, or disable.
+        #[arg(long, value_enum, default_value_t = SemanticMode::Require)]
+        semantic: SemanticMode,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +403,31 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
         }
         Command::Guide => run_guide(),
         Command::Policy { dump_default } => run_policy(dump_default)?,
+        #[cfg(feature = "explore")]
+        Command::Explore {
+            paths,
+            policy,
+            semantic,
+            semantic_path,
+        } => {
+            if paths.len() == 1 {
+                let overlay = ensure_semantic_data(
+                    semantic_path.as_deref(),
+                    Some(&paths[0]),
+                    semantic,
+                    socket,
+                )?;
+                run_explore(&paths[0], policy.as_deref(), overlay.as_ref())?;
+            } else {
+                if semantic_path.is_some() {
+                    anyhow::bail!(
+                        "--semantic-path is not supported with multiple paths; \
+                         use --sock for semantic analysis"
+                    );
+                }
+                run_explore_multi(&paths, policy.as_deref(), semantic, socket)?;
+            }
+        }
     }
     Ok(())
 }
@@ -1188,6 +1232,75 @@ fn run_watch_background(sock: &Path, paths: &[PathBuf]) -> anyhow::Result<()> {
 
 fn run_guide() {
     print!(include_str!("guide.md"));
+}
+
+// ---------------------------------------------------------------------------
+// Explore (feature-gated)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "explore")]
+fn run_explore(
+    path: &Path,
+    policy_path: Option<&Path>,
+    semantic: Option<&descendit::SemanticOverlay>,
+) -> anyhow::Result<()> {
+    descendit::explore::run_explore(path, policy_path, semantic)
+}
+
+#[cfg(feature = "explore")]
+fn run_explore_multi(
+    paths: &[PathBuf],
+    policy_path: Option<&Path>,
+    semantic_mode: SemanticMode,
+    socket: Option<&Path>,
+) -> anyhow::Result<()> {
+    let policy = load_policy(policy_path)?;
+    let semantic_overlays = resolve_batch_semantics(paths, semantic_mode, socket)?;
+
+    let targets: Vec<(
+        String,
+        descendit::AnalysisReport,
+        Option<descendit::SemanticOverlay>,
+    )> = paths
+        .iter()
+        .zip(semantic_overlays)
+        .map(|(path, semantic)| {
+            let mut report = descendit::analyze_path(path)?;
+            if let Some(ref overlay) = semantic {
+                report.semantic = Some(descendit::SemanticSummary::from_overlay(overlay));
+            }
+            Ok((path.display().to_string(), report, semantic))
+        })
+        .collect::<anyhow::Result<_>>()?;
+
+    let mut builder = descendit::NormalizationContextBuilder::default();
+    for (_, report, _) in &targets {
+        builder.observe_report(report);
+    }
+    let norm_ctx = builder.build();
+
+    let mut all_heatmap = Vec::new();
+    for (prefix, report, semantic) in &targets {
+        let cr = descendit::compute_compliance_with_context(
+            report,
+            &policy,
+            &norm_ctx,
+            semantic.as_ref(),
+        );
+        for mut entry in cr.heatmap {
+            entry.file = format!("{prefix}/{}", entry.file);
+            all_heatmap.push(entry);
+        }
+    }
+
+    if all_heatmap.is_empty() {
+        println!("No loss hotspots -- all dimensions at 0.0 loss. Nothing to explore.");
+        return Ok(());
+    }
+
+    let roots = descendit::build_heatmap_tree(&all_heatmap);
+    descendit::explore::run_explore_with_tree(roots)?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

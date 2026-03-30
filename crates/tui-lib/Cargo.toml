@@ -1,0 +1,24 @@
+[package]
+name = "tui-lib"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["devkit"]
+devkit = ["dep:insta", "dep:similar"]
+
+[dependencies]
+crossterm = { workspace = true, features = ["event-stream"] }
+insta = { workspace = true, optional = true }
+pulldown-cmark.workspace = true
+ratatui = { workspace = true, features = ["unstable-rendered-line-info"] }
+similar = { workspace = true, optional = true }
+syntect = { workspace = true }
+two-face = { workspace = true }
+unicode-width.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[lints]
+workspace = true
