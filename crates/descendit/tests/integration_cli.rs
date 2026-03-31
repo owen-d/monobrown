@@ -10,11 +10,25 @@ fn help_output_succeeds() {
 }
 
 #[test]
-fn analyze_semantic_off_succeeds() {
+fn analyze_with_semantic_path_succeeds() {
+    let semantic_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("empty_semantic.json");
+    descendit_cmd()
+        .args(["analyze", "--semantic-path"])
+        .arg(&semantic_path)
+        .arg(".")
+        .assert()
+        .success();
+}
+
+#[test]
+fn analyze_rejects_semantic_off_flag() {
     descendit_cmd()
         .args(["analyze", "--semantic", "off", "."])
         .assert()
-        .success();
+        .failure();
 }
 
 #[test]

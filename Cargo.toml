@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/descendit", "crates/descendit-ra", "crates/mb-tui"]
+exclude = ["crates/descendit/examples/sample-crate", "crates/descendit/examples/state-explosion"]
 
 [workspace.package]
 version = "0.1.0"

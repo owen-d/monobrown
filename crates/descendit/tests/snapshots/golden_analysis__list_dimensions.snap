@@ -1,0 +1,69 @@
+---
+source: crates/descendit/tests/golden_analysis.rs
+expression: stdout
+---
+Loss Dimensions
+===============
+Default composite loss = 1 - geometric_mean(dimension_scores). 0.0 = perfect.
+
+1. duplication
+
+   Structural duplication across functions. Duplicate code means duplicate bugs and duplicate maintenance burden.
+
+   Calculation:  Fingerprints production (non-test) function bodies into shape
+                 tokens (stripping identifiers/literals). Functions with shape
+                 length >= 5 are compared. duplication_score = fraction of
+                 production functions in a duplicate group.
+   Formula:      loss = duplication_score
+   Aggregation:  Global. 0 duplicates -> score 1.0. All duplicated -> score 0.0.
+
+2. code_economy
+
+   Function overhead ratio: non-test functions / public functions. A high ratio means excessive internal machinery relative to API surface.
+
+   Calculation:  overhead_ratio = adjusted_production / adjusted_public, where
+                 control-flow macros count as production functions and
+                 #[macro_export] macros count as public API surface. Default
+                 normalization uses the configured threshold and default
+                 calibration uses score = min(1, threshold/ratio). Alternative
+                 normalization/calibration policies can change that shaping.
+   Formula:      loss = default loss = 1 - min(1, threshold/overhead_ratio)
+   Aggregation:  Global. No adjusted public API surface -> vacuously 1.0.
+
+3. state_cardinality
+
+   State space size (log2) for types and functions. Types with many boolean/optional fields and functions with many mutable boolean/option/result bindings create exponential state spaces.
+
+   Calculation:  Recursive type analysis: bool -> 2, Option<T> -> 1+T,
+                 Result<T,E> -> T+E, scalars/named -> 1. Structs multiply field
+                 cardinalities, enums use the worst intra-variant product
+                 cardinality. Default normalization uses K =
+                 max_state_cardinality_log2 and default calibration yields
+                 per-type/fn score = min(1, (K+1)/(1+log2_card)). Alternative
+                 normalization/calibration policies can change that shaping.
+   Formula:      loss = default loss = 1 - geomean(min(1, (K+1) / (1 + log2_card))) per type and fn
+   Aggregation:  Default: geometric mean across types and functions with mutable state. Aggregation policy is configurable.
+
+4. bloat
+
+   Function line-count bloat: production functions whose line count exceeds the threshold carry too much logic per function. All non-test production functions participate.
+
+   Calculation:  All non-test production functions participate. Default
+                 normalization uses K = max_function_lines and default
+                 calibration yields per-function score = min(1, K / lines).
+                 Alternative normalization/calibration policies can change that
+                 shaping.
+   Formula:      loss = default loss = 1 - geomean(min(1, K / lines)) per fn
+   Aggregation:  Default: geometric mean across production functions. Aggregation policy is configurable.
+
+5. coupling_density
+
+   Per-module outgoing cross-module edge count. Modules with many outgoing dependencies carry coupling loss.
+
+   Calculation:  Per-module outgoing edge count, normalized and calibrated
+                 through the standard pipeline. Default normalization uses K =
+                 max_coupling_edges and default calibration yields per-module
+                 score = min(1, K / edges). Alternative
+                 normalization/calibration policies can change that shaping.
+   Formula:      loss = default loss = 1 - geomean(min(1, K / edges)) per module
+   Aggregation:  Default: geometric mean across modules (same as bloat/state_cardinality). Fallback: score = 1 - density when only SemanticSummary is available (no overlay).

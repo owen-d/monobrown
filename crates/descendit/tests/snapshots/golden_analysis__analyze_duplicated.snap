@@ -1,0 +1,185 @@
+---
+source: crates/descendit/tests/golden_analysis.rs
+expression: output
+---
+{
+  "composite_loss": 0.26502134182241655,
+  "dimensions": {
+    "bloat": {
+      "loss": 0.14210599317980066,
+      "item_count": 8
+    },
+    "code_economy": {
+      "loss": 0.0,
+      "item_count": 8
+    },
+    "coupling_density": {
+      "loss": 0.0,
+      "item_count": 0,
+      "not_measured": true
+    },
+    "duplication": {
+      "loss": 0.75,
+      "item_count": 8
+    },
+    "state_cardinality": {
+      "loss": 0.0,
+      "item_count": 3
+    }
+  },
+  "top_heatmap": [
+    {
+      "file": "duplicated.rs",
+      "line": 20,
+      "function_name": "filter_users",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of filter_products (shape_len 13)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "filter_users"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 31,
+      "function_name": "filter_products",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of filter_users (shape_len 13)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "filter_products"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 44,
+      "function_name": "count_active_users",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of count_available_products (shape_len 14)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "count_active_users"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 57,
+      "function_name": "count_available_products",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of count_active_users (shape_len 14)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "count_available_products"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 72,
+      "function_name": "serialize_users",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of serialize_products (shape_len 12)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "serialize_users"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 83,
+      "function_name": "serialize_products",
+      "dimension": "duplication",
+      "responsibility": 0.03913858258949746,
+      "detail": "exact duplicate of serialize_users (shape_len 12)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "serialize_products"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 44,
+      "function_name": "count_active_users",
+      "dimension": "bloat",
+      "responsibility": 0.003190351939911573,
+      "detail": "11 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "count_active_users"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 57,
+      "function_name": "count_available_products",
+      "dimension": "bloat",
+      "responsibility": 0.003190351939911573,
+      "detail": "11 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "count_available_products"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 96,
+      "function_name": "validate_user",
+      "dimension": "bloat",
+      "responsibility": 0.003190351939911573,
+      "detail": "11 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "validate_user"
+        }
+      ]
+    },
+    {
+      "file": "duplicated.rs",
+      "line": 109,
+      "function_name": "validate_order",
+      "dimension": "bloat",
+      "responsibility": 0.003190351939911573,
+      "detail": "11 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "validate_order"
+        }
+      ]
+    }
+  ],
+  "heatmap_entry_count": 14,
+  "dimension_totals": [
+    {
+      "dimension": "duplication",
+      "total_responsibility": 0.23483149553698476,
+      "entry_count": 6
+    },
+    {
+      "dimension": "bloat",
+      "total_responsibility": 0.022574688791721975,
+      "entry_count": 8
+    }
+  ]
+}

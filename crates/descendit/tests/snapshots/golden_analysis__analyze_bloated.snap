@@ -1,0 +1,101 @@
+---
+source: crates/descendit/tests/golden_analysis.rs
+expression: output
+---
+{
+  "composite_loss": 0.14357919488122117,
+  "dimensions": {
+    "bloat": {
+      "loss": 0.5291926513923106,
+      "item_count": 3
+    },
+    "code_economy": {
+      "loss": 0.0,
+      "item_count": 3
+    },
+    "coupling_density": {
+      "loss": 0.0,
+      "item_count": 0,
+      "not_measured": true
+    },
+    "duplication": {
+      "loss": 0.0,
+      "item_count": 3
+    },
+    "state_cardinality": {
+      "loss": 0.0214279379122998,
+      "item_count": 2
+    }
+  },
+  "top_heatmap": [
+    {
+      "file": "bloated.rs",
+      "line": 16,
+      "function_name": "process_records",
+      "dimension": "bloat",
+      "responsibility": 0.04940187753319114,
+      "detail": "58 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "process_records"
+        }
+      ]
+    },
+    {
+      "file": "bloated.rs",
+      "line": 89,
+      "function_name": "validate_config",
+      "dimension": "bloat",
+      "responsibility": 0.04542131742410638,
+      "detail": "52 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "validate_config"
+        }
+      ]
+    },
+    {
+      "file": "bloated.rs",
+      "line": 155,
+      "function_name": "render_report",
+      "dimension": "bloat",
+      "responsibility": 0.03754163647574826,
+      "detail": "41 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "render_report"
+        }
+      ]
+    },
+    {
+      "file": "bloated.rs",
+      "line": 3,
+      "function_name": "Record",
+      "dimension": "state_cardinality",
+      "responsibility": 0.0037182085556272115,
+      "detail": "log2 cardinality 1.0",
+      "scope_path": [
+        {
+          "kind": "type",
+          "name": "Record"
+        }
+      ]
+    }
+  ],
+  "heatmap_entry_count": 4,
+  "dimension_totals": [
+    {
+      "dimension": "bloat",
+      "total_responsibility": 0.13236483143304578,
+      "entry_count": 3
+    },
+    {
+      "dimension": "state_cardinality",
+      "total_responsibility": 0.0037182085556272115,
+      "entry_count": 1
+    }
+  ]
+}

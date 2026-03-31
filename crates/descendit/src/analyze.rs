@@ -188,11 +188,12 @@ fn extract_items(items: &[syn::Item], state: &TraversalState, ctx: &mut Analysis
                 if let Some(type_name) = type_name_from_ty(&item_impl.self_ty) {
                     impl_scope.push(ScopeSegment::Type(type_name));
                 }
+                let is_trait_impl = item_impl.trait_.is_some();
                 let impl_state = TraversalState {
                     scope: impl_scope,
                     ..state.clone()
                 };
-                extract_impl_items(&item_impl.items, &impl_state, ctx);
+                extract_impl_items(&item_impl.items, &impl_state, is_trait_impl, ctx);
             }
             syn::Item::Mod(item_mod) => {
                 if let Some((_, ref mod_items)) = item_mod.content {
@@ -270,13 +271,28 @@ fn count_macro_if_eligible(
 }
 
 /// Extract functions from impl blocks.
-fn extract_impl_items(items: &[syn::ImplItem], state: &TraversalState, ctx: &mut AnalysisContext) {
+///
+/// For trait impls (`is_trait_impl = true`), methods inherit the publicness of
+/// the enclosing type.  Trait impl methods don't carry a `pub` keyword in the
+/// syntax even though they are callable by anyone who can name the type and
+/// trait. Treating `Default::default()` as private inflates code-economy.
+fn extract_impl_items(
+    items: &[syn::ImplItem],
+    state: &TraversalState,
+    is_trait_impl: bool,
+    ctx: &mut AnalysisContext,
+) {
     for item in items {
         if let syn::ImplItem::Fn(method) = item {
+            let method_is_pub = if is_trait_impl {
+                // Trait impl methods are as public as the enclosing type.
+                state.parent_is_pub
+            } else {
+                state.parent_is_pub && matches!(method.vis, syn::Visibility::Public(_))
+            };
             let fn_state = TraversalState {
                 in_test_module: state.in_test_module || has_attribute(&method.attrs, "test"),
-                parent_is_pub: state.parent_is_pub
-                    && matches!(method.vis, syn::Visibility::Public(_)),
+                parent_is_pub: method_is_pub,
                 ..state.clone()
             };
             extract_function(&method.sig, &method.block, &fn_state, ctx);

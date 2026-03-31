@@ -13,7 +13,7 @@ categories = ["development-tools", "command-line-utilities"]
 workspace = true
 
 [features]
-default = ["semantic"]
+default = ["semantic", "explore"]
 semantic = ["dep:descendit-ra", "dep:notify"]
 explore = ["dep:mb-tui", "dep:crossterm", "dep:ratatui"]
 

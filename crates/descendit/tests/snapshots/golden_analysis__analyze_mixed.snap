@@ -1,0 +1,195 @@
+---
+source: crates/descendit/tests/golden_analysis.rs
+expression: output
+---
+{
+  "composite_loss": 0.21560861754164984,
+  "dimensions": {
+    "bloat": {
+      "loss": 0.10802764957342503,
+      "item_count": 9
+    },
+    "code_economy": {
+      "loss": 0.3769612475381675,
+      "item_count": 9
+    },
+    "coupling_density": {
+      "loss": 0.0,
+      "item_count": 0,
+      "not_measured": true
+    },
+    "duplication": {
+      "loss": 0.2222222222222222,
+      "item_count": 9
+    },
+    "state_cardinality": {
+      "loss": 0.31302317627095544,
+      "item_count": 3
+    }
+  },
+  "top_heatmap": [
+    {
+      "file": "mixed.rs",
+      "line": 3,
+      "function_name": "Report",
+      "dimension": "state_cardinality",
+      "responsibility": 0.058730002609668985,
+      "detail": "log2 cardinality 5.0",
+      "scope_path": [
+        {
+          "kind": "type",
+          "name": "Report"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 69,
+      "function_name": "sort_entries_by_value",
+      "dimension": "duplication",
+      "responsibility": 0.02021670613754306,
+      "detail": "exact duplicate of sort_entries_by_label (shape_len 10)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "sort_entries_by_value"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 75,
+      "function_name": "sort_entries_by_label",
+      "dimension": "duplication",
+      "responsibility": 0.02021670613754306,
+      "detail": "exact duplicate of sort_entries_by_value (shape_len 10)",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "sort_entries_by_label"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 83,
+      "function_name": "compute_median",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "compute_median"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 97,
+      "function_name": "format_pct",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "format_pct"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 104,
+      "function_name": "clamp",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "clamp"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 114,
+      "function_name": "truncate_label",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "truncate_label"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 122,
+      "function_name": "count_above_threshold",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "count_above_threshold"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 126,
+      "function_name": "_unused_helper",
+      "dimension": "code_economy",
+      "responsibility": 0.012975310754339517,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "_unused_helper"
+        }
+      ]
+    },
+    {
+      "file": "mixed.rs",
+      "line": 28,
+      "function_name": "build_summary",
+      "dimension": "bloat",
+      "responsibility": 0.009171189467214846,
+      "detail": "32 lines",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "build_summary"
+        }
+      ]
+    }
+  ],
+  "heatmap_entry_count": 19,
+  "dimension_totals": [
+    {
+      "dimension": "code_economy",
+      "total_responsibility": 0.0778518645260371,
+      "entry_count": 6
+    },
+    {
+      "dimension": "state_cardinality",
+      "total_responsibility": 0.06099868828998933,
+      "entry_count": 2
+    },
+    {
+      "dimension": "duplication",
+      "total_responsibility": 0.04043341227508612,
+      "entry_count": 2
+    },
+    {
+      "dimension": "bloat",
+      "total_responsibility": 0.017999218102100922,
+      "entry_count": 9
+    }
+  ]
+}

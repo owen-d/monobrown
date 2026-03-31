@@ -1,0 +1,190 @@
+---
+source: crates/descendit/tests/golden_analysis.rs
+expression: output
+---
+{
+  "composite_loss": 0.20561141477358558,
+  "dimensions": {
+    "bloat": {
+      "loss": 0.11468747304789628,
+      "item_count": 16
+    },
+    "code_economy": {
+      "loss": 0.5916239042567757,
+      "item_count": 16
+    },
+    "coupling_density": {
+      "loss": 0.0,
+      "item_count": 0,
+      "not_measured": true
+    },
+    "duplication": {
+      "loss": 0.125,
+      "item_count": 16
+    },
+    "state_cardinality": {
+      "loss": 0.0,
+      "item_count": 2
+    }
+  },
+  "top_heatmap": [
+    {
+      "file": "overhead.rs",
+      "line": 39,
+      "function_name": "strip_comments",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "strip_comments"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 47,
+      "function_name": "normalize_whitespace",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "normalize_whitespace"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 55,
+      "function_name": "tokenize",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "tokenize"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 66,
+      "function_name": "filter_empty",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "filter_empty"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 77,
+      "function_name": "merge_adjacent",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "merge_adjacent"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 103,
+      "function_name": "validate_tokens",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "validate_tokens"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 114,
+      "function_name": "build_index",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "build_index"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 124,
+      "function_name": "sort_by_kind",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "sort_by_kind"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 136,
+      "function_name": "format_tokens",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "format_tokens"
+        }
+      ]
+    },
+    {
+      "file": "overhead.rs",
+      "line": 143,
+      "function_name": "apply_indentation",
+      "dimension": "code_economy",
+      "responsibility": 0.01113030982736067,
+      "detail": "non-pub overhead fn",
+      "scope_path": [
+        {
+          "kind": "function",
+          "name": "apply_indentation"
+        }
+      ]
+    }
+  ],
+  "heatmap_entry_count": 32,
+  "dimension_totals": [
+    {
+      "dimension": "code_economy",
+      "total_responsibility": 0.15582433758304934,
+      "entry_count": 14
+    },
+    {
+      "dimension": "duplication",
+      "total_responsibility": 0.02150099063052502,
+      "entry_count": 2
+    },
+    {
+      "dimension": "bloat",
+      "total_responsibility": 0.019378327281402097,
+      "entry_count": 16
+    }
+  ]
+}

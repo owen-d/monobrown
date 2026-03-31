@@ -233,7 +233,7 @@ fn handle_analyze(session: &mut RaSession, manifest_dir: &Path) -> Response {
 
 fn print_summary(data: &SemanticData) {
     eprintln!(
-        "[watch] {} types, {} functions, {} call edges",
+        "[watch] {} type resolutions, {} function state resolutions, {} call edges",
         data.type_cardinalities.len(),
         data.function_cardinalities.len(),
         data.call_edges.len(),

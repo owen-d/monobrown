@@ -1,15 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, anyhow};
-use clap::ValueEnum;
-
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, ValueEnum)]
-pub(crate) enum SemanticMode {
-    #[default]
-    Require,
-    Auto,
-    Off,
-}
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -18,84 +9,30 @@ pub(crate) enum SemanticMode {
 /// Run the RA backend (or load pre-existing data) and return an overlay.
 ///
 /// When `explicit_semantic` is given, that file is loaded directly.
-/// Otherwise `semantic_mode` controls whether the RA backend is invoked.
+/// Otherwise the RA backend is invoked to generate semantic data.
 /// When `socket` is `Some`, the analysis is delegated to a running server
 /// instead of spawning a local RA session.
 pub(crate) fn ensure_semantic_data(
     explicit_semantic: Option<&Path>,
     analysis_path: Option<&Path>,
-    semantic_mode: SemanticMode,
     _socket: Option<&Path>,
-) -> anyhow::Result<Option<descendit::SemanticOverlay>> {
-    if explicit_semantic.is_some() {
-        return resolve_semantic(explicit_semantic, analysis_path);
+) -> anyhow::Result<descendit::SemanticOverlay> {
+    if let Some(path) = explicit_semantic {
+        return load_semantic_overlay(path);
     }
 
-    match semantic_mode {
-        SemanticMode::Off => Ok(None),
-        SemanticMode::Auto => {
-            let Some(path) = analysis_path else {
-                return Ok(None);
-            };
-            #[cfg(feature = "semantic")]
-            {
-                match run_ra_analysis(path, _socket) {
-                    Ok(overlay) => Ok(Some(overlay)),
-                    Err(e) => {
-                        eprintln!("warning: semantic analysis failed: {e}");
-                        resolve_semantic(None, Some(path))
-                    }
-                }
-            }
-            #[cfg(not(feature = "semantic"))]
-            {
-                resolve_semantic(None, Some(path))
-            }
-        }
-        SemanticMode::Require => {
-            let path = analysis_path.ok_or_else(|| anyhow!("no analysis path provided"))?;
-            #[cfg(feature = "semantic")]
-            {
-                let overlay = run_ra_analysis(path, _socket)?;
-                Ok(Some(overlay))
-            }
-            #[cfg(not(feature = "semantic"))]
-            {
-                let _ = path;
-                anyhow::bail!(
-                    "semantic analysis is required but the `semantic` feature is not enabled. \
-                     Rebuild with `cargo install descendit` (default features) or pass --semantic off."
-                );
-            }
-        }
+    let path = analysis_path.ok_or_else(|| anyhow!("no analysis path provided"))?;
+    #[cfg(feature = "semantic")]
+    {
+        catch_ra_panic(|| run_ra_analysis(path, _socket))
     }
-}
-
-/// Resolve pre-existing semantic data without running a backend pipeline.
-///
-/// Used for saved analysis reports where the semantic JSON was already
-/// produced during the original analysis.
-pub(crate) fn ensure_saved_semantic_data(
-    explicit_semantic: Option<&Path>,
-    anchor: Option<&Path>,
-    semantic_mode: SemanticMode,
-) -> anyhow::Result<Option<descendit::SemanticOverlay>> {
-    if explicit_semantic.is_some() {
-        return resolve_semantic(explicit_semantic, anchor);
-    }
-
-    match semantic_mode {
-        SemanticMode::Off => Ok(None),
-        SemanticMode::Auto => resolve_semantic(None, anchor),
-        SemanticMode::Require => resolve_semantic(None, anchor)?
-            .ok_or_else(|| {
-                anyhow!(
-                    "semantic enrichment is required for saved analysis reports, but no \
-                     semantic data was found. Pass --semantic-path <path> or rerun against \
-                     source with --semantic=require."
-                )
-            })
-            .map(Some),
+    #[cfg(not(feature = "semantic"))]
+    {
+        let _ = path;
+        anyhow::bail!(
+            "semantic analysis is required but the `semantic` feature is not enabled. \
+             Rebuild with `cargo install descendit` (default features)."
+        );
     }
 }
 
@@ -160,6 +97,34 @@ fn load_semantic_overlay(path: &Path) -> anyhow::Result<descendit::SemanticOverl
 }
 
 // ---------------------------------------------------------------------------
+// Panic guard for RA backend
+// ---------------------------------------------------------------------------
+
+/// Run `f` and convert any panic into an `anyhow::Error`.
+///
+/// rust-analyzer internals can panic on certain codebases.  Wrapping the call
+/// converts the panic into a proper error instead of crashing the process.
+#[cfg(feature = "semantic")]
+fn catch_ra_panic<F, T>(f: F) -> anyhow::Result<T>
+where
+    F: FnOnce() -> anyhow::Result<T> + std::panic::UnwindSafe,
+{
+    match std::panic::catch_unwind(f) {
+        Ok(result) => result,
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown panic".to_string()
+            };
+            Err(anyhow!("rust-analyzer panicked: {msg}"))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RA backend (requires `semantic` feature)
 // ---------------------------------------------------------------------------
 
@@ -190,8 +155,12 @@ fn run_ra_analysis(
         anyhow::bail!("socket-based analysis is only supported on Unix platforms");
     }
 
-    let json = descendit_ra::analyze_to_json(manifest_dir)
-        .context("rust-analyzer semantic analysis failed")?;
+    let json = descendit_ra::analyze_to_json(manifest_dir).with_context(|| {
+        format!(
+            "rust-analyzer semantic analysis failed for {}.",
+            manifest_dir.display()
+        )
+    })?;
 
     let data: descendit::SemanticData =
         serde_json::from_str(&json).context("failed to parse RA semantic output")?;
@@ -295,8 +264,8 @@ pub(crate) fn run_ra_analysis_batch(
     _socket: Option<&Path>,
 ) -> anyhow::Result<Vec<(PathBuf, descendit::SemanticData)>> {
     anyhow::bail!(
-        "batch semantic analysis requires the `semantic` feature. \
-         Rebuild with default features or pass --semantic off."
+        "semantic analysis is required but the `semantic` feature is not enabled. \
+         Rebuild with `cargo install descendit` (default features)."
     );
 }
 
@@ -309,17 +278,6 @@ pub(crate) fn run_ra_analysis_batch(
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn saved_analysis_require_fails_without_semantic_data() {
-        let temp = tempdir().expect("tempdir");
-        let report_path = temp.path().join("analysis.json");
-        std::fs::write(&report_path, "{}").expect("report placeholder");
-
-        let err = ensure_saved_semantic_data(None, Some(&report_path), SemanticMode::Require)
-            .expect_err("require should fail");
-        assert!(err.to_string().contains("--semantic-path"));
-    }
 
     #[test]
     fn find_nearest_manifest_walks_up() {

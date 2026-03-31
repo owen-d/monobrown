@@ -12,9 +12,7 @@ mod server;
 #[cfg(all(unix, feature = "semantic"))]
 mod server_protocol;
 
-use semantic_runtime::{
-    SemanticMode, ensure_saved_semantic_data, ensure_semantic_data, resolve_semantic,
-};
+use semantic_runtime::{ensure_semantic_data, resolve_semantic};
 
 /// Deterministic loss functions for code.
 #[derive(Debug, Parser)]
@@ -37,36 +35,21 @@ enum Command {
     /// Scan source code and produce a raw metrics snapshot.
     ///
     /// This is the foundation of the pipeline. Use it to capture the current
-    /// state of a crate or directory, then feed the output into `comply`,
-    /// `diff`, or `heatmap` for further analysis.
+    /// state of a crate or directory, then feed the output into `diff`
+    /// or `heatmap` for further analysis.
     Analyze {
         /// Paths to analyze (directories or .rs files). Multiple paths use shared normalization.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
-        /// Only print the summary section.
-        #[arg(long)]
-        summary_only: bool,
-        /// Output as structured loss vector.
-        #[arg(long)]
-        loss_vector: bool,
-        /// Output compliance report.
-        #[arg(long)]
-        compliance: bool,
         /// Agent-friendly compact output: composite loss, per-dimension losses, top heatmap items.
-        #[arg(long, conflicts_with_all = ["summary_only", "loss_vector", "compliance"])]
+        #[arg(long)]
         agent: bool,
         /// Number of top heatmap items to include (used with --agent).
         #[arg(long, default_value_t = 10)]
         top: usize,
-        /// Custom compliance policy JSON file (optional).
-        #[arg(long)]
-        policy: Option<PathBuf>,
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
-        /// Semantic enrichment mode: require generated data, try and fall back, or disable.
-        #[arg(long, value_enum, default_value_t = SemanticMode::Require)]
-        semantic: SemanticMode,
     },
     /// Compare two analysis snapshots and show what changed.
     ///
@@ -97,23 +80,6 @@ enum Command {
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
     },
-    /// Score a saved analysis snapshot against a compliance policy.
-    ///
-    /// Separated from `analyze` so you can re-score the same snapshot with
-    /// different policies without re-analyzing the source.
-    Comply {
-        /// Analysis JSON file.
-        analysis: PathBuf,
-        /// Custom compliance policy JSON file (optional).
-        #[arg(long)]
-        policy: Option<PathBuf>,
-        /// Path to semantic data JSON for this saved analysis snapshot.
-        #[arg(long = "semantic-path")]
-        semantic_path: Option<PathBuf>,
-        /// Semantic data mode for saved analysis: require an overlay, try to load one, or disable.
-        #[arg(long, value_enum, default_value_t = SemanticMode::Require)]
-        semantic: SemanticMode,
-    },
     /// List all available loss dimensions and their descriptions.
     List {
         /// Output as JSON instead of human-readable format.
@@ -129,9 +95,6 @@ enum Command {
         /// Paths to watch for changes.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
-        /// Run the server in the background and return immediately.
-        #[arg(long)]
-        background: bool,
     },
     /// Shut down a running watch server.
     ///
@@ -156,18 +119,18 @@ enum Command {
         /// Render as hierarchical rollup tree instead of flat list.
         #[arg(long)]
         tree: bool,
+        /// Limit output to the top N entries by responsibility.
+        #[arg(long)]
+        top: Option<usize>,
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
-        /// Semantic enrichment mode: require generated data, try and fall back, or disable.
-        #[arg(long, value_enum, default_value_t = SemanticMode::Require)]
-        semantic: SemanticMode,
     },
-    /// Emit a self-contained guide for LLM / agent consumption.
-    ///
-    /// Prints a markdown document covering installation, all subcommands,
-    /// loss dimensions, and the analyze-diff-comply workflow.
-    Guide,
+    /// Agent-oriented utilities.
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
     /// Dump the default compliance policy as JSON.
     ///
     /// Useful for understanding the built-in thresholds or as a starting
@@ -192,10 +155,16 @@ enum Command {
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
-        /// Semantic enrichment mode: require generated data, try and fall back, or disable.
-        #[arg(long, value_enum, default_value_t = SemanticMode::Require)]
-        semantic: SemanticMode,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentCommand {
+    /// Emit a self-contained guide for LLM / agent consumption.
+    ///
+    /// Prints a markdown document covering installation, all subcommands,
+    /// loss dimensions, and the analyze-diff workflow.
+    Guide,
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +184,8 @@ struct AgentAnalysisSummary {
 struct AgentDimensionSummary {
     loss: f64,
     item_count: usize,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    not_measured: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -286,37 +257,26 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
     match command {
         Command::Analyze {
             paths,
-            summary_only,
-            loss_vector,
-            compliance,
             agent,
             top,
-            policy,
-            semantic,
             semantic_path,
         } => {
             if paths.len() == 1 {
                 let overlay = ensure_semantic_data(
                     semantic_path.as_deref(),
                     Some(&paths[0]),
-                    semantic,
                     socket,
                 )?;
                 run_analyze(&AnalyzeParams {
                     path: &paths[0],
-                    summary_only,
-                    loss_vector,
-                    compliance,
                     agent,
                     top,
-                    policy_path: policy.as_deref(),
-                    semantic: overlay.as_ref(),
+                    semantic: Some(&overlay),
                 })?;
             } else {
-                if summary_only || loss_vector || compliance || agent {
+                if agent {
                     anyhow::bail!(
-                        "--summary-only, --loss-vector, --compliance, and --agent \
-                         are not supported with multiple paths"
+                        "--agent is not supported with multiple paths"
                     );
                 }
                 if semantic_path.is_some() {
@@ -325,7 +285,7 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                          use --sock for semantic analysis"
                     );
                 }
-                run_analyze_multi(&paths, policy.as_deref(), semantic, socket)?;
+                run_analyze_multi(&paths, socket)?;
             }
         }
         Command::Diff {
@@ -350,27 +310,9 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                 semantic: overlay.as_ref(),
             })?;
         }
-        Command::Comply {
-            analysis,
-            policy,
-            semantic,
-            semantic_path,
-        } => {
-            let overlay =
-                ensure_saved_semantic_data(semantic_path.as_deref(), Some(&analysis), semantic)?;
-            run_comply(&analysis, policy.as_deref(), overlay.as_ref())?;
-        }
         #[cfg(all(unix, feature = "semantic"))]
-        Command::Watch {
-            sock,
-            paths,
-            background,
-        } => {
-            if background {
-                run_watch_background(&sock, &paths)?;
-            } else {
-                server::run_watch(&sock, &paths)?;
-            }
+        Command::Watch { sock, paths } => {
+            server::run_watch(&sock, &paths)?;
         }
         #[cfg(all(unix, feature = "semantic"))]
         Command::Reap => dispatch_reap(socket)?,
@@ -380,17 +322,16 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
             policy,
             json,
             tree,
-            semantic,
+            top,
             semantic_path,
         } => {
             if paths.len() == 1 {
                 let overlay = ensure_semantic_data(
                     semantic_path.as_deref(),
                     Some(&paths[0]),
-                    semantic,
                     socket,
                 )?;
-                run_heatmap(&paths[0], policy.as_deref(), json, tree, overlay.as_ref())?;
+                run_heatmap(&paths[0], policy.as_deref(), json, tree, top, Some(&overlay))?;
             } else {
                 if semantic_path.is_some() {
                     anyhow::bail!(
@@ -398,26 +339,26 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                          use --sock for semantic analysis"
                     );
                 }
-                run_heatmap_multi(&paths, policy.as_deref(), json, tree, semantic, socket)?;
+                run_heatmap_multi(&paths, policy.as_deref(), json, tree, top, socket)?;
             }
         }
-        Command::Guide => run_guide(),
+        Command::Agent { command } => match command {
+            AgentCommand::Guide => run_guide(),
+        },
         Command::Policy { dump_default } => run_policy(dump_default)?,
         #[cfg(feature = "explore")]
         Command::Explore {
             paths,
             policy,
-            semantic,
             semantic_path,
         } => {
             if paths.len() == 1 {
                 let overlay = ensure_semantic_data(
                     semantic_path.as_deref(),
                     Some(&paths[0]),
-                    semantic,
                     socket,
                 )?;
-                run_explore(&paths[0], policy.as_deref(), overlay.as_ref())?;
+                run_explore(&paths[0], policy.as_deref(), Some(&overlay))?;
             } else {
                 if semantic_path.is_some() {
                     anyhow::bail!(
@@ -425,7 +366,7 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                          use --sock for semantic analysis"
                     );
                 }
-                run_explore_multi(&paths, policy.as_deref(), semantic, socket)?;
+                run_explore_multi(&paths, policy.as_deref(), socket)?;
             }
         }
     }
@@ -469,36 +410,27 @@ fn assess_loss_delta(delta: f64) -> descendit::Assessment {
 
 struct AnalyzeParams<'a> {
     path: &'a Path,
-    summary_only: bool,
-    loss_vector: bool,
-    compliance: bool,
     agent: bool,
     top: usize,
-    policy_path: Option<&'a Path>,
     semantic: Option<&'a descendit::SemanticOverlay>,
 }
 
 fn run_analyze(params: &AnalyzeParams<'_>) -> anyhow::Result<()> {
     let mut report = descendit::analyze_path(params.path)?;
+    if report.files_analyzed == 0 {
+        anyhow::bail!(
+            "no .rs files found in {}",
+            params.path.display()
+        );
+    }
     if let Some(overlay) = params.semantic {
         report.semantic = Some(descendit::SemanticSummary::from_overlay(overlay));
     }
 
     if params.agent {
-        let policy = load_policy(params.policy_path)?;
+        let policy = descendit::CompliancePolicy::default();
         let cr = descendit::compute_compliance_with_semantic(&report, &policy, params.semantic);
         print_agent_summary(&cr, params.top)?;
-    } else if params.compliance {
-        let policy = load_policy(params.policy_path)?;
-        let cr = descendit::compute_compliance_with_semantic(&report, &policy, params.semantic);
-        println!("{}", serde_json::to_string_pretty(&cr)?);
-    } else if params.loss_vector {
-        let policy = load_policy(params.policy_path)?;
-        let cr = descendit::compute_compliance_with_semantic(&report, &policy, params.semantic);
-        let lv = descendit::compliance_to_loss_vector(&cr);
-        println!("{}", serde_json::to_string_pretty(&lv)?);
-    } else if params.summary_only {
-        println!("{}", serde_json::to_string_pretty(&report.summary)?);
     } else {
         println!("{}", serde_json::to_string_pretty(&report)?);
     }
@@ -511,11 +443,13 @@ fn print_agent_summary(cr: &descendit::ComplianceReport, top: usize) -> anyhow::
 
     let mut dimensions = std::collections::BTreeMap::new();
     for dim in &cr.soft_dimensions {
+        let not_measured = dim.name == "coupling_density" && dim.item_count == 0;
         dimensions.insert(
             dim.name.clone(),
             AgentDimensionSummary {
                 loss: 1.0 - dim.score,
                 item_count: dim.item_count,
+                not_measured,
             },
         );
     }
@@ -909,74 +843,61 @@ fn print_heatmap_diff_human(report: &HeatmapDiffReport) {
     }
 }
 
-fn run_comply(
-    analysis: &Path,
-    policy_path: Option<&Path>,
-    semantic: Option<&descendit::SemanticOverlay>,
-) -> anyhow::Result<()> {
-    let analysis_json = std::fs::read_to_string(analysis)?;
-    let report: descendit::AnalysisReport = serde_json::from_str(&analysis_json)?;
-
-    let policy = load_policy(policy_path)?;
-
-    let cr = descendit::compute_compliance_with_semantic(&report, &policy, semantic);
-    println!("{}", serde_json::to_string_pretty(&cr)?);
-
-    Ok(())
-}
-
 fn resolve_batch_semantics(
     paths: &[PathBuf],
-    semantic_mode: SemanticMode,
     socket: Option<&Path>,
 ) -> anyhow::Result<Vec<Option<descendit::SemanticOverlay>>> {
-    match semantic_mode {
-        SemanticMode::Off => Ok(vec![None; paths.len()]),
-        mode => match semantic_runtime::run_ra_analysis_batch(paths, socket) {
-            Ok(batch) => {
-                let map: std::collections::HashMap<PathBuf, descendit::SemanticOverlay> = batch
-                    .into_iter()
-                    .map(|(p, data)| {
-                        let json = serde_json::to_string(&data)?;
-                        let data: descendit::SemanticData = serde_json::from_str(&json)?;
-                        Ok((p, descendit::SemanticOverlay::from_data(&data)))
-                    })
-                    .collect::<anyhow::Result<_>>()?;
-                Ok(paths
-                    .iter()
-                    .map(|p| {
-                        std::fs::canonicalize(p)
-                            .ok()
-                            .and_then(|c| map.get(&c).cloned())
-                            .or_else(|| map.get(p).cloned())
-                    })
-                    .collect())
-            }
-            Err(e) => {
-                if mode == SemanticMode::Require {
-                    return Err(e.context("semantic analysis required but failed"));
-                }
-                eprintln!("warning: batch semantic analysis failed: {e}");
-                Ok(vec![None; paths.len()])
-            }
-        },
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        semantic_runtime::run_ra_analysis_batch(paths, socket)
+    }))
+    .unwrap_or_else(|payload| {
+        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic".to_string()
+        };
+        Err(anyhow::anyhow!("rust-analyzer panicked: {msg}"))
+    }) {
+        Ok(batch) => {
+            let map: std::collections::HashMap<PathBuf, descendit::SemanticOverlay> = batch
+                .into_iter()
+                .map(|(p, data)| {
+                    let json = serde_json::to_string(&data)?;
+                    let data: descendit::SemanticData = serde_json::from_str(&json)?;
+                    Ok((p, descendit::SemanticOverlay::from_data(&data)))
+                })
+                .collect::<anyhow::Result<_>>()?;
+            Ok(paths
+                .iter()
+                .map(|p| {
+                    std::fs::canonicalize(p)
+                        .ok()
+                        .and_then(|c| map.get(&c).cloned())
+                        .or_else(|| map.get(p).cloned())
+                })
+                .collect())
+        }
+        Err(e) => Err(e.context("semantic analysis failed")),
     }
 }
 
 fn run_analyze_multi(
     paths: &[PathBuf],
-    policy_path: Option<&Path>,
-    semantic_mode: SemanticMode,
     socket: Option<&Path>,
 ) -> anyhow::Result<()> {
-    let policy = load_policy(policy_path)?;
-    let semantic_overlays = resolve_batch_semantics(paths, semantic_mode, socket)?;
+    let policy = descendit::CompliancePolicy::default();
+    let semantic_overlays = resolve_batch_semantics(paths, socket)?;
 
     let targets: Vec<descendit::CorpusExperimentTarget> = paths
         .iter()
         .zip(semantic_overlays)
         .map(|(path, semantic)| {
             let analysis = descendit::analyze_path(path)?;
+            if analysis.files_analyzed == 0 {
+                anyhow::bail!("no .rs files found in {}", path.display());
+            }
             Ok(descendit::CorpusExperimentTarget {
                 label: path.display().to_string(),
                 analysis,
@@ -996,9 +917,13 @@ fn run_heatmap(
     policy_path: Option<&Path>,
     json: bool,
     tree: bool,
+    top: Option<usize>,
     semantic: Option<&descendit::SemanticOverlay>,
 ) -> anyhow::Result<()> {
     let mut report = descendit::analyze_path(path)?;
+    if report.files_analyzed == 0 {
+        anyhow::bail!("no .rs files found in {}", path.display());
+    }
     if let Some(overlay) = semantic {
         report.semantic = Some(descendit::SemanticSummary::from_overlay(overlay));
     }
@@ -1015,17 +940,26 @@ fn run_heatmap(
         return Ok(());
     }
 
+    let entries: &[descendit::HeatmapEntry] = &cr.heatmap;
+    let truncated;
+    let entries = if let Some(n) = top {
+        truncated = entries.iter().take(n).cloned().collect::<Vec<_>>();
+        &truncated
+    } else {
+        entries
+    };
+
     if tree {
-        let roots = descendit::build_heatmap_tree(&cr.heatmap);
+        let roots = descendit::build_heatmap_tree(entries);
         if json {
             println!("{}", serde_json::to_string_pretty(&roots)?);
         } else {
             print_heatmap_tree(&roots);
         }
     } else if json {
-        println!("{}", serde_json::to_string_pretty(&cr.heatmap)?);
+        println!("{}", serde_json::to_string_pretty(entries)?);
     } else {
-        print_flat_heatmap(&cr.heatmap);
+        print_flat_heatmap(entries);
     }
 
     Ok(())
@@ -1060,11 +994,11 @@ fn run_heatmap_multi(
     policy_path: Option<&Path>,
     json: bool,
     tree: bool,
-    semantic_mode: SemanticMode,
+    top: Option<usize>,
     socket: Option<&Path>,
 ) -> anyhow::Result<()> {
     let policy = load_policy(policy_path)?;
-    let semantic_overlays = resolve_batch_semantics(paths, semantic_mode, socket)?;
+    let semantic_overlays = resolve_batch_semantics(paths, socket)?;
 
     let targets: Vec<(
         String,
@@ -1075,6 +1009,9 @@ fn run_heatmap_multi(
         .zip(semantic_overlays)
         .map(|(path, semantic)| {
             let mut report = descendit::analyze_path(path)?;
+            if report.files_analyzed == 0 {
+                anyhow::bail!("no .rs files found in {}", path.display());
+            }
             if let Some(ref overlay) = semantic {
                 report.semantic = Some(descendit::SemanticSummary::from_overlay(overlay));
             }
@@ -1089,9 +1026,9 @@ fn run_heatmap_multi(
     let norm_ctx = builder.build();
 
     if json {
-        print_heatmap_multi_json(&targets, &policy, &norm_ctx, tree)?;
+        print_heatmap_multi_json(&targets, &policy, &norm_ctx, tree, top)?;
     } else {
-        print_heatmap_multi_human(&targets, &policy, &norm_ctx, tree);
+        print_heatmap_multi_human(&targets, &policy, &norm_ctx, tree, top);
     }
 
     Ok(())
@@ -1106,15 +1043,21 @@ fn print_heatmap_multi_json(
     policy: &descendit::CompliancePolicy,
     norm_ctx: &descendit::NormalizationContext,
     tree: bool,
+    top: Option<usize>,
 ) -> anyhow::Result<()> {
     let mut results = Vec::new();
     for (label, report, semantic) in targets {
         let cr =
             descendit::compute_compliance_with_context(report, policy, norm_ctx, semantic.as_ref());
-        let heatmap_data = if tree {
-            serde_json::to_value(descendit::build_heatmap_tree(&cr.heatmap))?
+        let entries = if let Some(n) = top {
+            cr.heatmap.into_iter().take(n).collect::<Vec<_>>()
         } else {
-            serde_json::to_value(&cr.heatmap)?
+            cr.heatmap
+        };
+        let heatmap_data = if tree {
+            serde_json::to_value(descendit::build_heatmap_tree(&entries))?
+        } else {
+            serde_json::to_value(&entries)?
         };
         results.push(serde_json::json!({
             "label": label,
@@ -1134,6 +1077,7 @@ fn print_heatmap_multi_human(
     policy: &descendit::CompliancePolicy,
     norm_ctx: &descendit::NormalizationContext,
     tree: bool,
+    top: Option<usize>,
 ) {
     for (i, (label, report, semantic)) in targets.iter().enumerate() {
         if i > 0 {
@@ -1146,11 +1090,16 @@ fn print_heatmap_multi_human(
             println!("No loss hotspots.");
             continue;
         }
+        let entries = if let Some(n) = top {
+            cr.heatmap.into_iter().take(n).collect::<Vec<_>>()
+        } else {
+            cr.heatmap
+        };
         if tree {
-            let roots = descendit::build_heatmap_tree(&cr.heatmap);
+            let roots = descendit::build_heatmap_tree(&entries);
             print_heatmap_tree(&roots);
         } else {
-            print_flat_heatmap(&cr.heatmap);
+            print_flat_heatmap(&entries);
         }
     }
 }
@@ -1196,35 +1145,8 @@ fn print_tree_node(node: &descendit::HeatmapTreeNode, prefix: &str, is_last: boo
     }
 }
 
-// ---------------------------------------------------------------------------
-// Watch background
-// ---------------------------------------------------------------------------
 
-#[cfg(all(unix, feature = "semantic"))]
-fn run_watch_background(sock: &Path, paths: &[PathBuf]) -> anyhow::Result<()> {
-    let exe = std::env::current_exe()?;
-    let mut cmd = std::process::Command::new(exe);
-    cmd.arg("watch").arg("--sock").arg(sock);
-    for p in paths {
-        cmd.arg(p);
-    }
-    // Redirect output to log file.
-    let log_path = sock.with_extension("log");
-    let log_file = std::fs::File::create(&log_path)?;
-    cmd.stdout(log_file.try_clone()?);
-    cmd.stderr(log_file);
-    let child = cmd.spawn()?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "status": "starting",
-            "socket": sock.display().to_string(),
-            "pid": child.id(),
-            "log": log_path.display().to_string(),
-        }))?
-    );
-    Ok(())
-}
+
 
 // ---------------------------------------------------------------------------
 // Guide
@@ -1251,11 +1173,10 @@ fn run_explore(
 fn run_explore_multi(
     paths: &[PathBuf],
     policy_path: Option<&Path>,
-    semantic_mode: SemanticMode,
     socket: Option<&Path>,
 ) -> anyhow::Result<()> {
     let policy = load_policy(policy_path)?;
-    let semantic_overlays = resolve_batch_semantics(paths, semantic_mode, socket)?;
+    let semantic_overlays = resolve_batch_semantics(paths, socket)?;
 
     let targets: Vec<(
         String,
@@ -1323,17 +1244,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn analyze_defaults_to_required_semantics() {
+    fn analyze_defaults_parse() {
         let cli = Cli::try_parse_from(["descendit", "analyze", "."]).expect("parse analyze");
         match cli.command {
             Command::Analyze {
                 paths,
-                semantic,
                 semantic_path,
                 ..
             } => {
                 assert_eq!(paths, vec![PathBuf::from(".")]);
-                assert_eq!(semantic, SemanticMode::Require);
                 assert!(semantic_path.is_none());
             }
             _ => panic!("expected analyze command"),
@@ -1341,25 +1260,18 @@ mod tests {
     }
 
     #[test]
-    fn analyze_accepts_semantic_modes_and_semantic_path() {
+    fn analyze_accepts_semantic_path() {
         let cli = Cli::try_parse_from([
             "descendit",
             "analyze",
             ".",
-            "--semantic",
-            "auto",
             "--semantic-path",
             "target/descendit/semantic.json",
         ])
         .expect("parse analyze");
 
         match cli.command {
-            Command::Analyze {
-                semantic,
-                semantic_path,
-                ..
-            } => {
-                assert_eq!(semantic, SemanticMode::Auto);
+            Command::Analyze { semantic_path, .. } => {
                 assert_eq!(
                     semantic_path,
                     Some(PathBuf::from("target/descendit/semantic.json"))
@@ -1367,6 +1279,13 @@ mod tests {
             }
             _ => panic!("expected analyze command"),
         }
+    }
+
+    #[test]
+    fn analyze_rejects_semantic_flag() {
+        // --semantic should no longer be a valid flag
+        let result = Cli::try_parse_from(["descendit", "analyze", ".", "--semantic", "off"]);
+        assert!(result.is_err(), "--semantic should not be accepted");
     }
 
     // --- CLI flag parse tests ---
@@ -1395,25 +1314,6 @@ mod tests {
             }
             _ => panic!("expected analyze command"),
         }
-    }
-
-    #[test]
-    fn analyze_agent_conflicts_with_summary_only() {
-        let result =
-            Cli::try_parse_from(["descendit", "analyze", ".", "--agent", "--summary-only"]);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn analyze_agent_conflicts_with_loss_vector() {
-        let result = Cli::try_parse_from(["descendit", "analyze", ".", "--agent", "--loss-vector"]);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn analyze_agent_conflicts_with_compliance() {
-        let result = Cli::try_parse_from(["descendit", "analyze", ".", "--agent", "--compliance"]);
-        assert!(result.is_err());
     }
 
     #[test]
@@ -1520,39 +1420,6 @@ mod tests {
                 assert!(json);
             }
             _ => panic!("expected diff command"),
-        }
-    }
-
-    #[cfg(all(unix, feature = "semantic"))]
-    #[test]
-    fn watch_background_flag_parses() {
-        let cli = Cli::try_parse_from([
-            "descendit",
-            "watch",
-            "--sock",
-            "/tmp/s",
-            "--background",
-            ".",
-        ])
-        .expect("parse watch --background");
-        match cli.command {
-            Command::Watch { background, .. } => {
-                assert!(background);
-            }
-            _ => panic!("expected watch command"),
-        }
-    }
-
-    #[cfg(all(unix, feature = "semantic"))]
-    #[test]
-    fn watch_no_background_by_default() {
-        let cli = Cli::try_parse_from(["descendit", "watch", "--sock", "/tmp/s", "."])
-            .expect("parse watch");
-        match cli.command {
-            Command::Watch { background, .. } => {
-                assert!(!background);
-            }
-            _ => panic!("expected watch command"),
         }
     }
 
