@@ -2,6 +2,9 @@
 name = "mb-tui"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "TUI components for monobrown tools"
 
 [features]
 default = ["devkit"]
