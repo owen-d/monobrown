@@ -44,8 +44,8 @@ enum Command {
         /// Agent-friendly compact output: composite loss, per-dimension losses, top heatmap items.
         #[arg(long)]
         agent: bool,
-        /// Number of top heatmap items to include (used with --agent).
-        #[arg(long, default_value_t = 10)]
+        /// Number of top heatmap items to include (requires --agent).
+        #[arg(long, default_value_t = 10, requires = "agent")]
         top: usize,
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
@@ -56,6 +56,10 @@ enum Command {
     /// Takes two `analyze` JSON files (baseline and current) and produces
     /// per-dimension deltas. Use it to check whether a change improved or
     /// regressed code quality.
+    #[command(group(clap::ArgGroup::new("compliance_mode")
+        .args(["loss_vector", "compliance", "heatmap"])
+        .multiple(true)
+        .required(false)))]
     Diff {
         /// Baseline analysis JSON file.
         baseline: PathBuf,
@@ -67,14 +71,14 @@ enum Command {
         /// Compare at the compliance/loss level (composite + per-dimension deltas).
         #[arg(long, conflicts_with = "loss_vector")]
         compliance: bool,
-        /// Custom compliance policy JSON file (optional).
-        #[arg(long)]
+        /// Custom compliance policy JSON file (requires --compliance, --heatmap, or --loss-vector).
+        #[arg(long, requires = "compliance_mode")]
         policy: Option<PathBuf>,
         /// Show heatmap item changes between snapshots.
         #[arg(long)]
         heatmap: bool,
-        /// Output as JSON (used with --heatmap).
-        #[arg(long)]
+        /// Output as JSON (requires --heatmap).
+        #[arg(long, requires = "heatmap")]
         json: bool,
         /// Path to semantic data JSON.
         #[arg(long = "semantic-path")]
