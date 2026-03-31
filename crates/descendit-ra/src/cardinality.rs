@@ -65,7 +65,9 @@ pub(crate) fn process_function(
     let mut cardinality: u64 = 1;
 
     // Get the body expression and walk it for local definitions.
-    if let Some(body_source) = func.source(db) {
+    if let Some(body_source) = func.source(db)
+        && body_source.file_id.file_id().is_some()
+    {
         let file_id = body_source.file_id.original_file(db);
         let sema = ra_ap_hir::Semantics::new_dyn(db);
 

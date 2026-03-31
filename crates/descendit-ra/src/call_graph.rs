@@ -41,6 +41,13 @@ pub(crate) fn process_function(
         return;
     };
 
+    // Skip functions defined inside macro expansions — their syntax nodes
+    // belong to the macro's parse tree, not the original file's, so
+    // Semantics cannot resolve paths within them.
+    if body_source.file_id.file_id().is_none() {
+        return;
+    }
+
     let file_id = body_source.file_id.original_file(db);
     let sema = ra_ap_hir::Semantics::new_dyn(db);
     let _source_file = sema.parse(file_id);
