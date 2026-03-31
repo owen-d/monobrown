@@ -171,13 +171,12 @@ fn run_ra_analysis(
 // Manifest discovery
 // ---------------------------------------------------------------------------
 
-#[cfg_attr(not(feature = "semantic"), allow(dead_code))]
+#[cfg(feature = "semantic")]
 /// Return the directory to start searching for a manifest from.
 ///
 /// When `path` is a directory we search from it directly; when it is a file we
 /// start from its parent.  This avoids skipping over a `Cargo.toml` that lives
 /// inside the target directory.
-#[cfg_attr(not(feature = "semantic"), allow(dead_code))]
 fn manifest_search_start(path: &Path) -> &Path {
     if path.is_dir() {
         path
