@@ -133,7 +133,7 @@ fn run_ra_analysis(
     analysis_path: &Path,
     socket: Option<&Path>,
 ) -> anyhow::Result<descendit::SemanticOverlay> {
-    let manifest = find_nearest_manifest(analysis_path.parent().unwrap_or(analysis_path))
+    let manifest = find_nearest_manifest(manifest_search_start(analysis_path))
         .ok_or_else(|| anyhow!("could not find Cargo.toml near {}", analysis_path.display()))?;
     let manifest_dir = manifest
         .parent()
@@ -172,6 +172,20 @@ fn run_ra_analysis(
 // ---------------------------------------------------------------------------
 
 #[cfg_attr(not(feature = "semantic"), allow(dead_code))]
+/// Return the directory to start searching for a manifest from.
+///
+/// When `path` is a directory we search from it directly; when it is a file we
+/// start from its parent.  This avoids skipping over a `Cargo.toml` that lives
+/// inside the target directory.
+#[cfg_attr(not(feature = "semantic"), allow(dead_code))]
+fn manifest_search_start(path: &Path) -> &Path {
+    if path.is_dir() {
+        path
+    } else {
+        path.parent().unwrap_or(path)
+    }
+}
+
 pub(crate) fn find_nearest_manifest(start: &Path) -> Option<PathBuf> {
     let mut dir = start;
     for _ in 0..32 {
@@ -209,7 +223,7 @@ pub(crate) fn run_ra_analysis_batch(
         return paths
             .iter()
             .map(|path| {
-                let manifest = find_nearest_manifest(path.parent().unwrap_or(path))
+                let manifest = find_nearest_manifest(manifest_search_start(path))
                     .ok_or_else(|| anyhow!("could not find Cargo.toml near {}", path.display()))?;
                 let manifest_dir = manifest
                     .parent()
@@ -233,7 +247,7 @@ pub(crate) fn run_ra_analysis_batch(
 
     // Offline mode: load a single workspace session, extract for each subcrate.
     let first = &paths[0];
-    let first_manifest = find_nearest_manifest(first.parent().unwrap_or(first))
+    let first_manifest = find_nearest_manifest(manifest_search_start(first))
         .ok_or_else(|| anyhow!("could not find Cargo.toml near {}", first.display()))?;
     let first_manifest_dir = first_manifest
         .parent()
@@ -245,7 +259,7 @@ pub(crate) fn run_ra_analysis_batch(
     paths
         .iter()
         .map(|path| {
-            let manifest = find_nearest_manifest(path.parent().unwrap_or(path))
+            let manifest = find_nearest_manifest(manifest_search_start(path))
                 .ok_or_else(|| anyhow!("could not find Cargo.toml near {}", path.display()))?;
             let manifest_dir = manifest
                 .parent()
