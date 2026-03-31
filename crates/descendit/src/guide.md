@@ -8,7 +8,7 @@ decreases as code improves.
 ## Quick start
 
 ```
-descendit analyze src/ --agent --top 5
+descendit heatmap src/ --summary --top 5
 ```
 
 This prints composite loss, per-dimension scores, and the top 5 hotspots.
@@ -31,10 +31,9 @@ analyze  -->  diff
    +-> heatmap <--+
 ```
 
-1. **Analyze** -- capture a metrics snapshot of your crate or directory.
-2. **Diff** -- compare two snapshots to see what improved or regressed.
-3. **Comply** -- score a snapshot against a compliance policy.
-4. **Heatmap** -- drill into per-function loss attribution to find hotspots.
+1. **Analyze** -- capture a raw metrics snapshot of your crate or directory.
+2. **Heatmap** -- drill into per-function loss attribution to find hotspots.
+3. **Diff** -- compare two snapshots to see what improved or regressed.
 
 All commands accept `--sock` to connect to a running `watch` server. Use
 `watch` for iterative work — it keeps a persistent rust-analyzer session so
@@ -44,7 +43,8 @@ repeated analysis avoids cold starts.
 
 ### analyze
 
-Scan source code and produce a raw metrics snapshot.
+Scan source code and produce a raw metrics snapshot. This is the foundation
+of the pipeline — save its output to feed into `diff`.
 
 ```
 descendit analyze <paths...> [options]
@@ -52,44 +52,12 @@ descendit analyze <paths...> [options]
 
 | Flag | Effect |
 |------|--------|
-| `--agent` | Compact JSON: composite loss, per-dimension losses, top heatmap items |
-| `--top N` | Number of top heatmap items with `--agent` (default 10) |
 | `--semantic-path <file>` | Pre-generated semantic data JSON (skips RA) |
 
-Without `--agent`, outputs the full raw metrics snapshot (used as input
-for `diff`).
-
 Examples:
 
 ```
-descendit analyze src/                      # raw snapshot (pipe to file for diff)
-descendit analyze src/ --agent --top 5      # compact summary
-```
-
-### diff
-
-Compare two analysis snapshots and show what changed. The input files are
-the raw JSON output of `analyze` (without `--agent`, `--compliance`, or
-`--loss-vector`). Semantic data is already baked into the snapshots.
-
-```
-descendit diff <baseline.json> <current.json> [options]
-```
-
-| Flag | Effect |
-|------|--------|
-| `--compliance` | Compare at the compliance/loss level (composite + per-dimension deltas) |
-| `--loss-vector` | Output as structured loss vector |
-| `--heatmap` | Show heatmap item changes between snapshots |
-| `--json` | Output heatmap diff as JSON |
-| `--policy <file>` | Custom compliance policy JSON |
-| `--semantic-path <file>` | Path to semantic data JSON |
-
-Examples:
-
-```
-descendit diff baseline.json current.json --compliance
-descendit diff baseline.json current.json --heatmap --json
+descendit analyze src/ > snapshot.json
 ```
 
 ### heatmap
@@ -102,8 +70,9 @@ descendit heatmap <paths...> [options]
 
 | Flag | Effect |
 |------|--------|
-| `--tree` | Render as hierarchical rollup tree instead of flat list |
+| `--summary` | Compact JSON: composite loss, per-dimension scores, top heatmap entries |
 | `--top N` | Limit output to top N entries by responsibility |
+| `--tree` | Render as hierarchical rollup tree instead of flat list |
 | `--json` | Output as JSON |
 | `--policy <file>` | Custom compliance policy JSON |
 | `--semantic-path <file>` | Path to semantic data JSON (skips RA) |
@@ -111,10 +80,36 @@ descendit heatmap <paths...> [options]
 Examples:
 
 ```
-descendit heatmap src/
+descendit heatmap src/                          # human-readable
+descendit heatmap src/ --summary --top 5        # compact summary for agents
 descendit heatmap src/ --tree
-descendit heatmap src/ --top 20
-descendit heatmap src/ --json
+descendit heatmap src/ --top 20 --json
+```
+
+### diff
+
+Compare two analysis snapshots and show what changed. The input files are
+the raw JSON output of `analyze`. Semantic data is already baked into the
+snapshots.
+
+```
+descendit diff <baseline.json> <current.json> [options]
+```
+
+| Flag | Effect |
+|------|--------|
+| `--compliance` | Compare at the compliance/loss level (composite + per-dimension deltas) |
+| `--loss-vector` | Output as structured loss vector |
+| `--heatmap` | Show heatmap item changes between snapshots |
+| `--json` | Output heatmap diff as JSON (requires --heatmap) |
+| `--policy <file>` | Custom compliance policy JSON (requires --compliance, --heatmap, or --loss-vector) |
+| `--semantic-path <file>` | Path to semantic data JSON |
+
+Examples:
+
+```
+descendit diff baseline.json current.json --compliance
+descendit diff baseline.json current.json --heatmap --json
 ```
 
 ### list
@@ -139,8 +134,8 @@ The server re-analyzes automatically when source files change. Other commands
 connect via `--sock` for fast repeated queries:
 
 ```
-descendit analyze src/ --sock /tmp/descendit.sock --agent --top 5
-descendit heatmap src/ --sock /tmp/descendit.sock --top 10
+descendit analyze src/ --sock /tmp/descendit.sock > snapshot.json
+descendit heatmap src/ --sock /tmp/descendit.sock --summary --top 5
 ```
 
 ### reap
@@ -232,7 +227,7 @@ descendit watch --sock /tmp/descendit.sock src/
 
 # Epoch 0: baseline
 descendit analyze src/ --sock /tmp/descendit.sock > epoch0.json
-descendit heatmap src/ --sock /tmp/descendit.sock --top 10
+descendit heatmap src/ --sock /tmp/descendit.sock --summary --top 10
 
 # ... refactor the top hotspot ...
 
@@ -258,9 +253,6 @@ A typical convergence run:
 
 Most improvement lands in epochs 1-2. By epoch 4+, diminishing returns.
 
-The raw JSON output of `analyze` (no `--agent` or `--compliance`) is the
-snapshot format expected by `diff`.
-
 Common fixes by dimension:
 - **state_cardinality**: split bool-heavy structs into focused sub-structs
 - **bloat**: extract function phases into smaller functions
@@ -275,7 +267,7 @@ multi-dimensional scoring — the composite loss reflects the net effect.
 For quick one-shot analysis without a watch server:
 
 ```
-descendit analyze src/ --agent --top 10
+descendit heatmap src/ --summary --top 10
 ```
 
 ## Policy customization
@@ -299,5 +291,5 @@ The policy JSON controls:
 Apply a custom policy:
 
 ```
-descendit analyze src/ --compliance --policy policy.json
+descendit heatmap src/ --policy policy.json
 ```

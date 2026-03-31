@@ -19,7 +19,7 @@ Requires Rust 1.85+ (edition 2024).
 ## Quick start
 
 ```bash
-descendit analyze src/ --agent --top 5
+descendit heatmap src/ --summary --top 5
 ```
 
 This prints composite loss, per-dimension scores, and the top 5 hotspots.
@@ -117,7 +117,7 @@ Commands:
   reap     Shut down a running watch server
   heatmap  Drill down into which functions and types contribute most to loss
   explore  Interactive flamegraph explorer for loss drill-down
-  guide    Emit a self-contained guide for LLM / agent consumption
+  agent    Agent-oriented utilities
   policy   Dump the default compliance policy as JSON
   help     Print this message or the help of the given subcommand(s)
 
@@ -137,7 +137,7 @@ Scoring thresholds and aggregation strategies are configurable via JSON:
 ```bash
 descendit policy --dump-default > my-policy.json
 # edit thresholds...
-descendit analyze src/ --compliance --policy my-policy.json
+descendit heatmap src/ --policy my-policy.json
 ```
 
 ## License

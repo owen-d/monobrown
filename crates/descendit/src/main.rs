@@ -41,12 +41,6 @@ enum Command {
         /// Paths to analyze (directories or .rs files). Multiple paths use shared normalization.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
-        /// Agent-friendly compact output: composite loss, per-dimension losses, top heatmap items.
-        #[arg(long)]
-        agent: bool,
-        /// Number of top heatmap items to include (requires --agent).
-        #[arg(long, default_value_t = 10, requires = "agent")]
-        top: usize,
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
@@ -126,6 +120,9 @@ enum Command {
         /// Limit output to the top N entries by responsibility.
         #[arg(long)]
         top: Option<usize>,
+        /// Compact JSON summary: composite loss, per-dimension scores, and top heatmap entries.
+        #[arg(long, conflicts_with_all = ["json", "tree"])]
+        summary: bool,
         /// Path to semantic data JSON (skip backend generation when provided).
         #[arg(long = "semantic-path")]
         semantic_path: Option<PathBuf>,
@@ -176,16 +173,16 @@ enum AgentCommand {
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Serialize)]
-struct AgentAnalysisSummary {
+struct HeatmapSummary {
     composite_loss: f64,
-    dimensions: std::collections::BTreeMap<String, AgentDimensionSummary>,
+    dimensions: std::collections::BTreeMap<String, DimensionSummary>,
     top_heatmap: Vec<descendit::HeatmapEntry>,
     heatmap_entry_count: usize,
     dimension_totals: Vec<descendit::ExperimentHeatmapDimensionSummary>,
 }
 
 #[derive(serde::Serialize)]
-struct AgentDimensionSummary {
+struct DimensionSummary {
     loss: f64,
     item_count: usize,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -261,8 +258,6 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
     match command {
         Command::Analyze {
             paths,
-            agent,
-            top,
             semantic_path,
         } => {
             if paths.len() == 1 {
@@ -271,18 +266,8 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                     Some(&paths[0]),
                     socket,
                 )?;
-                run_analyze(&AnalyzeParams {
-                    path: &paths[0],
-                    agent,
-                    top,
-                    semantic: Some(&overlay),
-                })?;
+                run_analyze(&paths[0], Some(&overlay))?;
             } else {
-                if agent {
-                    anyhow::bail!(
-                        "--agent is not supported with multiple paths"
-                    );
-                }
                 if semantic_path.is_some() {
                     anyhow::bail!(
                         "--semantic-path is not supported with multiple paths; \
@@ -327,6 +312,7 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
             json,
             tree,
             top,
+            summary,
             semantic_path,
         } => {
             if paths.len() == 1 {
@@ -335,8 +321,13 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
                     Some(&paths[0]),
                     socket,
                 )?;
-                run_heatmap(&paths[0], policy.as_deref(), json, tree, top, Some(&overlay))?;
+                run_heatmap(&paths[0], policy.as_deref(), json, tree, top, summary, Some(&overlay))?;
             } else {
+                if summary {
+                    anyhow::bail!(
+                        "--summary is not supported with multiple paths"
+                    );
+                }
                 if semantic_path.is_some() {
                     anyhow::bail!(
                         "--semantic-path is not supported with multiple paths; \
@@ -412,37 +403,19 @@ fn assess_loss_delta(delta: f64) -> descendit::Assessment {
 // Subcommand implementations
 // ---------------------------------------------------------------------------
 
-struct AnalyzeParams<'a> {
-    path: &'a Path,
-    agent: bool,
-    top: usize,
-    semantic: Option<&'a descendit::SemanticOverlay>,
-}
-
-fn run_analyze(params: &AnalyzeParams<'_>) -> anyhow::Result<()> {
-    let mut report = descendit::analyze_path(params.path)?;
+fn run_analyze(path: &Path, semantic: Option<&descendit::SemanticOverlay>) -> anyhow::Result<()> {
+    let mut report = descendit::analyze_path(path)?;
     if report.files_analyzed == 0 {
-        anyhow::bail!(
-            "no .rs files found in {}",
-            params.path.display()
-        );
+        anyhow::bail!("no .rs files found in {}", path.display());
     }
-    if let Some(overlay) = params.semantic {
+    if let Some(overlay) = semantic {
         report.semantic = Some(descendit::SemanticSummary::from_overlay(overlay));
     }
-
-    if params.agent {
-        let policy = descendit::CompliancePolicy::default();
-        let cr = descendit::compute_compliance_with_semantic(&report, &policy, params.semantic);
-        print_agent_summary(&cr, params.top)?;
-    } else {
-        println!("{}", serde_json::to_string_pretty(&report)?);
-    }
-
+    println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }
 
-fn print_agent_summary(cr: &descendit::ComplianceReport, top: usize) -> anyhow::Result<()> {
+fn print_heatmap_summary(cr: &descendit::ComplianceReport, top: usize) -> anyhow::Result<()> {
     let heatmap_summary = descendit::summarize_heatmap(&cr.heatmap, top);
 
     let mut dimensions = std::collections::BTreeMap::new();
@@ -450,7 +423,7 @@ fn print_agent_summary(cr: &descendit::ComplianceReport, top: usize) -> anyhow::
         let not_measured = dim.name == "coupling_density" && dim.item_count == 0;
         dimensions.insert(
             dim.name.clone(),
-            AgentDimensionSummary {
+            DimensionSummary {
                 loss: 1.0 - dim.score,
                 item_count: dim.item_count,
                 not_measured,
@@ -458,7 +431,7 @@ fn print_agent_summary(cr: &descendit::ComplianceReport, top: usize) -> anyhow::
         );
     }
 
-    let summary = AgentAnalysisSummary {
+    let summary = HeatmapSummary {
         composite_loss: 1.0 - cr.composite_score,
         dimensions,
         top_heatmap: heatmap_summary.top_entries,
@@ -922,6 +895,7 @@ fn run_heatmap(
     json: bool,
     tree: bool,
     top: Option<usize>,
+    summary: bool,
     semantic: Option<&descendit::SemanticOverlay>,
 ) -> anyhow::Result<()> {
     let mut report = descendit::analyze_path(path)?;
@@ -934,6 +908,10 @@ fn run_heatmap(
 
     let policy = load_policy(policy_path)?;
     let cr = descendit::compute_compliance_with_semantic(&report, &policy, semantic);
+
+    if summary {
+        return print_heatmap_summary(&cr, top.unwrap_or(10));
+    }
 
     if cr.heatmap.is_empty() {
         if json {
@@ -1295,29 +1273,43 @@ mod tests {
     // --- CLI flag parse tests ---
 
     #[test]
-    fn analyze_agent_flag_parses() {
-        let cli = Cli::try_parse_from(["descendit", "analyze", ".", "--agent"])
-            .expect("parse analyze --agent");
+    fn heatmap_summary_flag_parses() {
+        let cli = Cli::try_parse_from(["descendit", "heatmap", ".", "--summary"])
+            .expect("parse heatmap --summary");
         match cli.command {
-            Command::Analyze { agent, top, .. } => {
-                assert!(agent);
-                assert_eq!(top, 10);
+            Command::Heatmap { summary, .. } => {
+                assert!(summary);
             }
-            _ => panic!("expected analyze command"),
+            _ => panic!("expected heatmap command"),
         }
     }
 
     #[test]
-    fn analyze_agent_with_top_parses() {
-        let cli = Cli::try_parse_from(["descendit", "analyze", ".", "--agent", "--top", "5"])
-            .expect("parse analyze --agent --top 5");
+    fn heatmap_summary_with_top_parses() {
+        let cli =
+            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--top", "5"])
+                .expect("parse heatmap --summary --top 5");
         match cli.command {
-            Command::Analyze { agent, top, .. } => {
-                assert!(agent);
-                assert_eq!(top, 5);
+            Command::Heatmap { summary, top, .. } => {
+                assert!(summary);
+                assert_eq!(top, Some(5));
             }
-            _ => panic!("expected analyze command"),
+            _ => panic!("expected heatmap command"),
         }
+    }
+
+    #[test]
+    fn heatmap_summary_conflicts_with_json() {
+        let result =
+            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--json"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn heatmap_summary_conflicts_with_tree() {
+        let result =
+            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--tree"]);
+        assert!(result.is_err());
     }
 
     #[test]
