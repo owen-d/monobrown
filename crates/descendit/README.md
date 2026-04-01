@@ -6,7 +6,7 @@ Deterministic structural metrics and loss scoring for Rust code.
 
 `descendit` parses Rust source with `syn`, extracts quantifiable structural metrics, and scores them through a pipeline inspired by ML loss functions. The same source always produces the same scores — deterministic by design.
 
-Built for agent-driven refactoring loops: score, identify hotspots, refactor, re-score, converge.
+Built for agent-driven refactoring loops: score, identify hotspots, refactor, re-score, converge. Read the [introductory blog post](https://www.pikach.us/blog/newsletter-2026-03/) for the full motivation.
 
 ## Install
 
