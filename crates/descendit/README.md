@@ -2,11 +2,25 @@
 
 **Where we're going, we don't need code**
 
-Deterministic structural metrics and loss scoring for Rust code.
+Train code like we train models. `descendit` scores your Rust codebase with deterministic structural loss functions, then your agent iteratively refactors until convergence — score, fix, re-score, repeat.
 
-`descendit` parses Rust source with `syn`, extracts quantifiable structural metrics, and scores them through a pipeline inspired by ML loss functions. The same source always produces the same scores — deterministic by design.
+To get started, have your agent run:
 
-Built for agent-driven refactoring loops: score, identify hotspots, refactor, re-score, converge. Read the [introductory blog post](https://www.pikach.us/blog/newsletter-2026-03/) for the full motivation.
+```bash
+descendit agent guide
+```
+
+It will get back everything it needs to run the loop end-to-end. You'll get something like:
+
+| Epoch | Composite loss | Delta | Action |
+|-------|---------------|-------|--------|
+| 0 | 0.142 | — | baseline |
+| 1 | 0.098 | -0.044 | split bloated function |
+| 2 | 0.071 | -0.027 | extract duplicated logic |
+| 3 | 0.065 | -0.006 | reduce state cardinality |
+| 4 | 0.063 | -0.002 | diminishing returns, stop |
+
+Read the [introductory blog post](https://www.pikach.us/blog/newsletter-2026-03/) for the full motivation.
 
 ## Install
 
@@ -16,20 +30,13 @@ cargo install descendit
 
 Requires Rust 1.85+ (edition 2024).
 
-## Quick start
+---
 
-```bash
-descendit heatmap src/ --summary --top 5
-```
+## Details
 
-This prints composite loss, per-dimension scores, and the top 5 hotspots.
+### The refactoring loop
 
-descendit runs rust-analyzer for cross-module coupling analysis automatically.
-Use `watch` mode for fast repeated analysis without cold starts.
-
-## The refactoring loop
-
-descendit is designed for iterative, measurable improvement — like gradient
+`descendit` is designed for iterative, measurable improvement — like gradient
 descent. Use `watch` to keep a persistent rust-analyzer session so repeated
 analysis avoids cold starts:
 
@@ -55,19 +62,9 @@ descendit diff epoch0.json epoch1.json --compliance
 descendit reap --sock /tmp/descendit.sock
 ```
 
-A typical convergence run:
-
-| Epoch | Composite loss | Delta | Action |
-|-------|---------------|-------|--------|
-| 0 | 0.142 | — | baseline |
-| 1 | 0.098 | -0.044 | split bloated function |
-| 2 | 0.071 | -0.027 | extract duplicated logic |
-| 3 | 0.065 | -0.006 | reduce state cardinality |
-| 4 | 0.063 | -0.002 | diminishing returns, stop |
-
 Most improvement lands in epochs 1-2. By epoch 4+, you're in diminishing returns.
 
-## Interactive explorer
+### Interactive explorer
 
 An interactive TUI flamegraph for drilling into loss attribution with
 syntax-highlighted source preview:
@@ -80,7 +77,7 @@ descendit explore src/
 
 [Watch the full recording on asciinema](https://asciinema.org/a/vlyBU5qMA3BkxYVb)
 
-## Loss dimensions
+### Loss dimensions
 
 Each dimension produces a score in [0, 1] where 1.0 = perfect.
 
@@ -101,7 +98,7 @@ Each dimension produces a score in [0, 1] where 1.0 = perfect.
 | 0.15 - 0.30 | Room for improvement |
 | 0.30+ | Significant structural issues |
 
-## CLI
+### CLI
 
 ```
 $ descendit --help
@@ -130,7 +127,7 @@ Options:
 Run `descendit <command> --help` for detailed flags, or `descendit agent guide` for
 the full reference.
 
-## Policy customization
+### Policy customization
 
 Scoring thresholds and aggregation strategies are configurable via JSON:
 

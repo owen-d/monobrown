@@ -7,6 +7,8 @@
 
 ## Crates
 
+**You're probably looking for one of these**
+
 | Crate | Description |
 |-------|-------------|
 | [`descendit`](crates/descendit/) | "Where we're going, we don't need code!" Gradient descent for application code: deterministic structural metrics and loss scoring |
