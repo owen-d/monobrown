@@ -73,7 +73,9 @@ consume the same semantic artifacts but are not part of the loss-gradient loop:
 descendit-design type-trait discover --query q.json
 ```
 
-Use `--query -` to pipe a query on stdin.
+Use `--query -` to pipe a query on stdin. Run
+`descendit-design agent guide` for the design-tool workflow, query schema, and
+semantic reuse options.
 
 ### Interactive explorer
 

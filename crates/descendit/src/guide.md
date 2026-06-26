@@ -52,6 +52,8 @@ descendit-design type-trait discover --query q.json
 `q.json` selects a crate path, optional scope, ignored traits, and text or JSON
 output. Pass `--query -` to pipe a query on stdin. The command reports
 type/trait graph rewrite candidates with before/after diagrams and source refs.
+Run `descendit-design agent guide` for the design-tool workflow, query schema,
+and semantic reuse options.
 
 ## Subcommands
 

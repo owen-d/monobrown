@@ -28,11 +28,22 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Agent-oriented utilities.
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
     /// Discover type/trait graph simplification candidates.
     TypeTrait {
         #[command(subcommand)]
         command: TypeTraitCommand,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentCommand {
+    /// Print the agent guide for speculative design analysis.
+    Guide,
 }
 
 #[derive(Debug, Subcommand)]
@@ -48,9 +59,16 @@ enum TypeTraitCommand {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Agent { command } => dispatch_agent(command),
         Command::TypeTrait { command } => dispatch_type_trait(command, cli.sock.as_deref())?,
     }
     Ok(())
+}
+
+fn dispatch_agent(command: AgentCommand) {
+    match command {
+        AgentCommand::Guide => print!("{}", include_str!("../design-guide.md")),
+    }
 }
 
 fn dispatch_type_trait(command: TypeTraitCommand, socket: Option<&Path>) -> anyhow::Result<()> {
@@ -261,6 +279,18 @@ mod tests {
             } => {
                 assert_eq!(query, PathBuf::from("-"));
             }
+            Command::Agent { .. } => panic!("expected type-trait command"),
+        }
+    }
+
+    #[test]
+    fn agent_guide_parses() {
+        let cli = Cli::try_parse_from(["descendit-design", "agent", "guide"]).expect("parse guide");
+        match cli.command {
+            Command::Agent {
+                command: AgentCommand::Guide,
+            } => {}
+            Command::TypeTrait { .. } => panic!("expected agent guide command"),
         }
     }
 }

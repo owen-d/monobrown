@@ -19,6 +19,14 @@ fn design_help_output_succeeds() {
 }
 
 #[test]
+fn design_agent_guide_succeeds() {
+    descendit_design_cmd()
+        .args(["agent", "guide"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn analyze_with_semantic_path_succeeds() {
     let semantic_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
