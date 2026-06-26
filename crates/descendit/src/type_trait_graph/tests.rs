@@ -233,6 +233,25 @@ fn discovers_and_applies_duplicate_trait_merge_plan() -> Result<(), TypeTraitGra
 }
 
 #[test]
+fn adapts_graph_data_to_text_diagram() -> Result<(), TypeTraitGraphError> {
+    let mut graph = TypeTraitGraph::new();
+    add_type(&mut graph, "SlateDbLogReader")?;
+    add_trait(&mut graph, "FamilyLogRead")?;
+    add_trait(&mut graph, "SlateDbLogRead")?;
+    type_impls_trait(&mut graph, "SlateDbLogReader", "FamilyLogRead")?;
+    trait_impls_trait(&mut graph, "FamilyLogRead", "SlateDbLogRead")?;
+
+    let rendered = graph.render_text_diagram()?;
+
+    assert!(rendered.contains("type SlateDbLogReader"));
+    assert!(rendered.contains("trait FamilyLogRead"));
+    assert!(rendered.contains("trait SlateDbLogRead"));
+    assert!(rendered.contains("impls"));
+    assert!(rendered.contains("implies"));
+    Ok(())
+}
+
+#[test]
 fn renders_rewrite_candidate_as_text_artifact() -> Result<(), TypeTraitGraphError> {
     let mut graph = TypeTraitGraph::new();
     add_type(&mut graph, "SlateDbLogReader")?;
@@ -247,9 +266,13 @@ fn renders_rewrite_candidate_as_text_artifact() -> Result<(), TypeTraitGraphErro
     assert!(rendered.contains("rule: alias_bypass"));
     assert!(rendered.contains("score: 5 -> 3 (-2)"));
     assert!(rendered.contains("before:"));
+    assert!(rendered.contains("diagram:"));
+    assert!(rendered.contains("data:"));
     assert!(rendered.contains("plan:"));
     assert!(rendered.contains("after:"));
     assert!(rendered.contains("+ impl SlateDbLogReader -> SlateDbLogRead"));
+    assert!(rendered.contains("type SlateDbLogReader"));
+    assert!(rendered.contains("trait SlateDbLogRead"));
     Ok(())
 }
 

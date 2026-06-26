@@ -14,6 +14,7 @@
 
 mod analysis;
 mod data;
+mod diagram;
 mod error;
 mod rewrite;
 
@@ -24,6 +25,7 @@ pub use analysis::{
     CostReduction, GraphCost, StructuralTraitGroup, TraitAliasCandidate, TypeTraitGraphAnalysis,
 };
 pub use data::{ImplEdge, ItemId, TraitName, TypeName, TypeTraitGraphData};
+pub use diagram::TypeTraitGraphDiagram;
 pub use error::TypeTraitGraphError;
 pub use rewrite::{GraphOp, RewriteCandidate, RewritePlan, RewriteRule};
 
@@ -205,12 +207,20 @@ impl TypeTraitGraph {
         self.to_data().render_text_graph()
     }
 
+    /// Render a human-readable Unicode diagram of the current graph.
+    pub fn render_text_diagram(&self) -> Result<String, TypeTraitGraphError> {
+        let data = self.to_data();
+        render_type_trait_diagram(&data)
+    }
+
     /// Render a before/plan/after artifact for a rewrite candidate.
     pub fn render_rewrite_candidate(
         &self,
         candidate: &RewriteCandidate,
     ) -> Result<String, TypeTraitGraphError> {
         let after = self.apply_plan(&candidate.plan)?;
+        let before_data = self.to_data();
+        let after_data = after.to_data();
         let mut output = String::new();
         let _ = writeln!(output, "rule: {}", candidate.plan.rule);
         let _ = writeln!(
@@ -222,11 +232,17 @@ impl TypeTraitGraph {
         );
         let _ = writeln!(output);
         let _ = writeln!(output, "before:");
-        Self::write_indented(&mut output, &self.render_text_graph());
+        let _ = writeln!(output, "  diagram:");
+        Self::write_nested(&mut output, &render_type_trait_diagram(&before_data)?);
+        let _ = writeln!(output, "  data:");
+        Self::write_nested(&mut output, &before_data.render_text_graph());
         let _ = writeln!(output, "plan:");
         Self::write_indented(&mut output, &candidate.plan.render_text());
         let _ = writeln!(output, "after:");
-        Self::write_indented(&mut output, &after.render_text_graph());
+        let _ = writeln!(output, "  diagram:");
+        Self::write_nested(&mut output, &render_type_trait_diagram(&after_data)?);
+        let _ = writeln!(output, "  data:");
+        Self::write_nested(&mut output, &after_data.render_text_graph());
         Ok(output)
     }
 
@@ -311,6 +327,12 @@ impl TypeTraitGraph {
     fn write_indented(output: &mut String, text: &str) {
         for line in text.lines() {
             let _ = writeln!(output, "  {line}");
+        }
+    }
+
+    fn write_nested(output: &mut String, text: &str) {
+        for line in text.lines() {
+            let _ = writeln!(output, "    {line}");
         }
     }
 
@@ -435,6 +457,12 @@ impl TypeTraitGraph {
         }
         candidates
     }
+}
+
+fn render_type_trait_diagram(data: &TypeTraitGraphData) -> Result<String, TypeTraitGraphError> {
+    TypeTraitGraphDiagram::new(data)
+        .render_unicode()
+        .map_err(|source| TypeTraitGraphError::Diagram { source })
 }
 
 #[cfg(test)]

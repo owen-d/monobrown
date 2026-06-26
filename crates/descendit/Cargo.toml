@@ -20,6 +20,7 @@ explore = ["dep:mb-tui", "dep:crossterm", "dep:ratatui"]
 [dependencies]
 descendit-ra = { workspace = true, optional = true }
 mb-tui = { workspace = true, optional = true }
+text-diagram = { workspace = true }
 crossterm = { workspace = true, optional = true, features = ["event-stream"] }
 ratatui = { workspace = true, optional = true, features = ["unstable-rendered-line-info"] }
 syn = { version = "2.0", features = ["full", "parsing", "visit"] }
