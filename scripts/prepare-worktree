@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+common_git_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+
+if [[ "$common_git_dir" == */.git ]]; then
+    primary_worktree_path="${common_git_dir%/.git}"
+else
+    primary_worktree_path="$(git worktree list --porcelain | awk '/^worktree / { sub(/^worktree /, ""); print; exit }')"
+fi
+
+cd "$repo_root"
+
+seed_dotenv() {
+    local primary_env="$primary_worktree_path/.env"
+
+    [[ -f "$primary_env" ]] || return 0
+    [[ ! -e .env ]] || return 0
+
+    cp -c "$primary_env" .env
+}
+
+seed_skills() {
+    [[ -f skills-lock.json ]] || return 0
+
+    local dir
+    for dir in .agents/skills .claude/skills; do
+        local primary_dir="$primary_worktree_path/$dir"
+
+        [[ -d "$primary_dir" ]] || continue
+        [[ ! -e "$dir" ]] || continue
+
+        mkdir -p "$(dirname "$dir")"
+        cp -cR "$primary_dir" "$(dirname "$dir")/"
+    done
+}
+
+seed_cargo_cache() {
+    local primary_target="$primary_worktree_path/target/debug"
+
+    [[ -d "$primary_target/deps" ]] || return 0
+    [[ ! -e target ]] || return 0
+
+    mkdir -p target/debug/deps
+
+    shopt -s nullglob
+    local deps=("$primary_target"/deps/*.rlib "$primary_target"/deps/*.rmeta)
+    if ((${#deps[@]})); then
+        cp -c "${deps[@]}" target/debug/deps/
+    fi
+
+    for dir in .fingerprint build; do
+        if [[ -e "$primary_target/$dir" ]]; then
+            cp -cR "$primary_target/$dir" target/debug/
+        fi
+    done
+}
+
+seed_dotenv
+seed_skills
+seed_cargo_cache
