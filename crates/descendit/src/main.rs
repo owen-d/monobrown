@@ -261,11 +261,8 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
             semantic_path,
         } => {
             if paths.len() == 1 {
-                let overlay = ensure_semantic_data(
-                    semantic_path.as_deref(),
-                    Some(&paths[0]),
-                    socket,
-                )?;
+                let overlay =
+                    ensure_semantic_data(semantic_path.as_deref(), Some(&paths[0]), socket)?;
                 run_analyze(&paths[0], Some(&overlay))?;
             } else {
                 if semantic_path.is_some() {
@@ -316,17 +313,20 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
             semantic_path,
         } => {
             if paths.len() == 1 {
-                let overlay = ensure_semantic_data(
-                    semantic_path.as_deref(),
-                    Some(&paths[0]),
-                    socket,
+                let overlay =
+                    ensure_semantic_data(semantic_path.as_deref(), Some(&paths[0]), socket)?;
+                run_heatmap(
+                    &paths[0],
+                    policy.as_deref(),
+                    json,
+                    tree,
+                    top,
+                    summary,
+                    Some(&overlay),
                 )?;
-                run_heatmap(&paths[0], policy.as_deref(), json, tree, top, summary, Some(&overlay))?;
             } else {
                 if summary {
-                    anyhow::bail!(
-                        "--summary is not supported with multiple paths"
-                    );
+                    anyhow::bail!("--summary is not supported with multiple paths");
                 }
                 if semantic_path.is_some() {
                     anyhow::bail!(
@@ -348,11 +348,8 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
             semantic_path,
         } => {
             if paths.len() == 1 {
-                let overlay = ensure_semantic_data(
-                    semantic_path.as_deref(),
-                    Some(&paths[0]),
-                    socket,
-                )?;
+                let overlay =
+                    ensure_semantic_data(semantic_path.as_deref(), Some(&paths[0]), socket)?;
                 run_explore(&paths[0], policy.as_deref(), Some(&overlay))?;
             } else {
                 if semantic_path.is_some() {
@@ -860,10 +857,7 @@ fn resolve_batch_semantics(
     }
 }
 
-fn run_analyze_multi(
-    paths: &[PathBuf],
-    socket: Option<&Path>,
-) -> anyhow::Result<()> {
+fn run_analyze_multi(paths: &[PathBuf], socket: Option<&Path>) -> anyhow::Result<()> {
     let policy = descendit::CompliancePolicy::default();
     let semantic_overlays = resolve_batch_semantics(paths, socket)?;
 
@@ -1127,9 +1121,6 @@ fn print_tree_node(node: &descendit::HeatmapTreeNode, prefix: &str, is_last: boo
     }
 }
 
-
-
-
 // ---------------------------------------------------------------------------
 // Guide
 // ---------------------------------------------------------------------------
@@ -1286,9 +1277,8 @@ mod tests {
 
     #[test]
     fn heatmap_summary_with_top_parses() {
-        let cli =
-            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--top", "5"])
-                .expect("parse heatmap --summary --top 5");
+        let cli = Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--top", "5"])
+            .expect("parse heatmap --summary --top 5");
         match cli.command {
             Command::Heatmap { summary, top, .. } => {
                 assert!(summary);
@@ -1300,15 +1290,13 @@ mod tests {
 
     #[test]
     fn heatmap_summary_conflicts_with_json() {
-        let result =
-            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--json"]);
+        let result = Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--json"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn heatmap_summary_conflicts_with_tree() {
-        let result =
-            Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--tree"]);
+        let result = Cli::try_parse_from(["descendit", "heatmap", ".", "--summary", "--tree"]);
         assert!(result.is_err());
     }
 

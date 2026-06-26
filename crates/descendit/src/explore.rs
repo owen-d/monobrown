@@ -1246,9 +1246,9 @@ mod tests {
     use crate::metrics::ScopeSegment;
     use crate::rollup::build_heatmap_tree;
     use crossterm::event::{KeyEventKind, KeyEventState};
+    use mb_tui::devkit::buffer_to_text;
     use ratatui::buffer::Buffer;
     use tempfile::tempdir;
-    use mb_tui::devkit::buffer_to_text;
 
     fn entry(
         function_name: &str,

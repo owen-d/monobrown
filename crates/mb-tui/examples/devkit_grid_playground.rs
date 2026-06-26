@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use crossterm::event::KeyCode;
+use mb_tui::devkit::playground;
+use mb_tui::render::{Constraints, GridRenderable, LayoutRenderable, Size};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use mb_tui::devkit::playground;
-use mb_tui::render::{Constraints, GridRenderable, LayoutRenderable, Size};
 
 // ---------------------------------------------------------------------------
 // Card data

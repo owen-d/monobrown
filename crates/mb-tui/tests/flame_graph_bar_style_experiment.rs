@@ -5,10 +5,10 @@
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
-use ratatui::layout::Rect;
 use mb_tui::devkit::Surface;
 use mb_tui::devkit::flame_graph::test_flame_graph;
 use mb_tui::widget::flame_graph::{BarStyle, render_flame_graph};
+use ratatui::layout::Rect;
 
 fn make_key(code: KeyCode) -> KeyEvent {
     KeyEvent {

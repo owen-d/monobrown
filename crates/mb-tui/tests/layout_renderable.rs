@@ -2,8 +2,6 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use mb_tui::devkit::Surface;
 use mb_tui::devkit::command_palette::demo_palette;
 use mb_tui::devkit::flame_graph::test_flame_graph;
@@ -14,6 +12,8 @@ use mb_tui::render::{
 };
 use mb_tui::widget::VimEditor;
 use mb_tui::widget::bar_selector::BarSelector;
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 #[derive(Clone)]
 struct FixedLayoutBox {
