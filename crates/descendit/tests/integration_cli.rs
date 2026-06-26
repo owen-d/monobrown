@@ -4,9 +4,18 @@ fn descendit_cmd() -> Command {
     assert_cmd::cargo_bin_cmd!("descendit")
 }
 
+fn descendit_design_cmd() -> Command {
+    assert_cmd::cargo_bin_cmd!("descendit-design")
+}
+
 #[test]
 fn help_output_succeeds() {
     descendit_cmd().arg("--help").assert().success();
+}
+
+#[test]
+fn design_help_output_succeeds() {
+    descendit_design_cmd().arg("--help").assert().success();
 }
 
 #[test]

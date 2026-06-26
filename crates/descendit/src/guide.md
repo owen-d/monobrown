@@ -39,6 +39,20 @@ All commands accept `--sock` to connect to a running `watch` server. Use
 `watch` for iterative work — it keeps a persistent rust-analyzer session so
 repeated analysis avoids cold starts.
 
+## Speculative design tools
+
+The `descendit-design` binary consumes the same semantic artifacts, but it is
+not part of the loss-gradient loop. Use it for exploratory design suggestions
+that may need human judgment before refactoring.
+
+```
+descendit-design type-trait discover --query q.json
+```
+
+`q.json` selects a crate path, optional scope, ignored traits, and text or JSON
+output. Pass `--query -` to pipe a query on stdin. The command reports
+type/trait graph rewrite candidates with before/after diagrams and source refs.
+
 ## Subcommands
 
 ### analyze

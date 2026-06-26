@@ -64,6 +64,17 @@ descendit reap --sock /tmp/descendit.sock
 
 Most improvement lands in epochs 1-2. By epoch 4+, you're in diminishing returns.
 
+### Speculative design tools
+
+The package also installs `descendit-design` for exploratory suggestions that
+consume the same semantic artifacts but are not part of the loss-gradient loop:
+
+```bash
+descendit-design type-trait discover --query q.json
+```
+
+Use `--query -` to pipe a query on stdin.
+
 ### Interactive explorer
 
 An interactive TUI flamegraph for drilling into loss attribution with
