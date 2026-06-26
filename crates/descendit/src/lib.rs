@@ -29,6 +29,8 @@ pub mod metrics;
 pub mod normalization;
 pub mod rollup;
 pub mod semantic;
+pub mod type_trait_discover;
+pub mod type_trait_graph;
 pub use aggregation::{
     ArtifactAggregation, ArtifactAggregationObservation, ArtifactSizeWeighting,
     ObjectiveScalarization, aggregate_artifact_observations, aggregate_artifact_scores,
@@ -43,6 +45,7 @@ pub use compliance::{
     HeatmapContext, HeatmapEntry, LossDimension, LossFunction, LossMetadata, ScoringInfo,
     compliance_delta_to_loss_vector, compliance_to_loss_vector, compute_compliance,
     compute_compliance_with_context, compute_compliance_with_semantic,
+    parse_compliance_policy_json,
 };
 pub use diff::{
     Assessment, DiffReport, Direction, LossEntry, LossValueOut, LossVectorOut, MetricDelta,
@@ -68,5 +71,5 @@ pub use normalization::{
 pub use rollup::{HeatmapTreeNode, build_heatmap_tree};
 pub use semantic::{
     CallEdge, CouplingData, ResolvedFunctionCardinality, ResolvedTypeCardinality, SemanticData,
-    SemanticOverlay,
+    SemanticOverlay, TypeTraitFact, TypeTraitFactKind,
 };

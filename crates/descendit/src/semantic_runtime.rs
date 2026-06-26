@@ -133,6 +133,31 @@ fn run_ra_analysis(
     analysis_path: &Path,
     socket: Option<&Path>,
 ) -> anyhow::Result<descendit::SemanticOverlay> {
+    let ra_data =
+        run_ra_data_with_domains(analysis_path, socket, descendit_ra::AnalysisDomains::all())?;
+    // Roundtrip through JSON to convert descendit_ra::SemanticData into
+    // descendit::SemanticData (structurally identical, separate types).
+    let json = serde_json::to_string(&ra_data)?;
+    let data: descendit::SemanticData =
+        serde_json::from_str(&json).context("failed to parse RA semantic output")?;
+    Ok(descendit::SemanticOverlay::from_data(&data))
+}
+
+#[cfg(feature = "semantic")]
+pub(crate) fn run_ra_data_with_domains(
+    analysis_path: &Path,
+    socket: Option<&Path>,
+    domains: descendit_ra::AnalysisDomains,
+) -> anyhow::Result<descendit_ra::SemanticData> {
+    catch_ra_panic(|| run_ra_data_with_domains_unchecked(analysis_path, socket, domains))
+}
+
+#[cfg(feature = "semantic")]
+fn run_ra_data_with_domains_unchecked(
+    analysis_path: &Path,
+    socket: Option<&Path>,
+    domains: descendit_ra::AnalysisDomains,
+) -> anyhow::Result<descendit_ra::SemanticData> {
     let manifest = find_nearest_manifest(manifest_search_start(analysis_path))
         .ok_or_else(|| anyhow!("could not find Cargo.toml near {}", analysis_path.display()))?;
     let manifest_dir = manifest
@@ -141,13 +166,8 @@ fn run_ra_analysis(
 
     #[cfg(unix)]
     if let Some(socket_path) = socket {
-        let ra_data = crate::client::analyze(socket_path, manifest_dir)
-            .context("server-backed semantic analysis failed")?;
-        // Roundtrip through JSON to convert descendit_ra::output::SemanticData
-        // into descendit::SemanticData (structurally identical, separate types).
-        let json = serde_json::to_string(&ra_data)?;
-        let data: descendit::SemanticData = serde_json::from_str(&json)?;
-        return Ok(descendit::SemanticOverlay::from_data(&data));
+        return crate::client::analyze_with_domains(socket_path, manifest_dir, domains)
+            .context("server-backed semantic analysis failed");
     }
 
     #[cfg(not(unix))]
@@ -155,16 +175,12 @@ fn run_ra_analysis(
         anyhow::bail!("socket-based analysis is only supported on Unix platforms");
     }
 
-    let json = descendit_ra::analyze_to_json(manifest_dir).with_context(|| {
+    descendit_ra::analyze_with_domains(manifest_dir, domains).with_context(|| {
         format!(
             "rust-analyzer semantic analysis failed for {}.",
             manifest_dir.display()
         )
-    })?;
-
-    let data: descendit::SemanticData =
-        serde_json::from_str(&json).context("failed to parse RA semantic output")?;
-    Ok(descendit::SemanticOverlay::from_data(&data))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +201,7 @@ fn manifest_search_start(path: &Path) -> &Path {
     }
 }
 
+#[cfg_attr(not(feature = "semantic"), allow(dead_code))]
 pub(crate) fn find_nearest_manifest(start: &Path) -> Option<PathBuf> {
     let mut dir = start;
     for _ in 0..32 {
@@ -213,6 +230,15 @@ pub(crate) fn run_ra_analysis_batch(
     paths: &[PathBuf],
     socket: Option<&Path>,
 ) -> anyhow::Result<Vec<(PathBuf, descendit_ra::SemanticData)>> {
+    run_ra_data_with_domains_batch(paths, socket, descendit_ra::AnalysisDomains::all())
+}
+
+#[cfg(feature = "semantic")]
+pub(crate) fn run_ra_data_with_domains_batch(
+    paths: &[PathBuf],
+    socket: Option<&Path>,
+    domains: descendit_ra::AnalysisDomains,
+) -> anyhow::Result<Vec<(PathBuf, descendit_ra::SemanticData)>> {
     if paths.is_empty() {
         return Ok(Vec::new());
     }
@@ -227,8 +253,8 @@ pub(crate) fn run_ra_analysis_batch(
                 let manifest_dir = manifest
                     .parent()
                     .ok_or_else(|| anyhow!("Cargo.toml has no parent directory"))?;
-                let data =
-                    crate::client::analyze(socket_path, manifest_dir).with_context(|| {
+                let data = crate::client::analyze_with_domains(socket_path, manifest_dir, domains)
+                    .with_context(|| {
                         format!(
                             "server-backed semantic analysis failed for {}",
                             path.display()
@@ -264,7 +290,7 @@ pub(crate) fn run_ra_analysis_batch(
                 .parent()
                 .ok_or_else(|| anyhow!("Cargo.toml has no parent directory"))?;
             let data = session
-                .extract_for_subcrate(manifest_dir)
+                .extract_for_subcrate_with_domains(manifest_dir, domains)
                 .with_context(|| format!("semantic extraction failed for {}", path.display()))?;
             Ok((path.clone(), data))
         })

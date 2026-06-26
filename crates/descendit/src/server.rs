@@ -5,7 +5,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use descendit_ra::{RaSession, SemanticData};
+use descendit_ra::{AnalysisDomains, RaSession, SemanticData};
 use notify::{RecursiveMode, Watcher, recommended_watcher};
 
 use crate::server_protocol::{Request, Response, read_message, write_message};
@@ -180,8 +180,11 @@ fn handle_connection(stream: UnixStream, session: &mut RaSession) -> ConnectionR
     };
 
     match request {
-        Request::Analyze { manifest_dir } => {
-            let response = handle_analyze(session, &manifest_dir);
+        Request::Analyze {
+            manifest_dir,
+            domains,
+        } => {
+            let response = handle_analyze(session, &manifest_dir, domains);
             if let Err(e) = write_message(&mut writer, &response) {
                 return ConnectionResult::Error(e.into());
             }
@@ -194,7 +197,11 @@ fn handle_connection(stream: UnixStream, session: &mut RaSession) -> ConnectionR
     }
 }
 
-fn handle_analyze(session: &mut RaSession, manifest_dir: &Path) -> Response {
+fn handle_analyze(
+    session: &mut RaSession,
+    manifest_dir: &Path,
+    domains: AnalysisDomains,
+) -> Response {
     let canonical = match std::fs::canonicalize(manifest_dir) {
         Ok(p) => p,
         Err(e) => {
@@ -218,9 +225,9 @@ fn handle_analyze(session: &mut RaSession, manifest_dir: &Path) -> Response {
     }
 
     let result = if canonical == session.manifest_dir() {
-        session.reload_and_analyze()
+        session.reload_and_analyze_with_domains(domains)
     } else {
-        session.extract_for_subcrate(&canonical)
+        session.extract_for_subcrate_with_domains(&canonical, domains)
     };
 
     match result {
@@ -233,9 +240,10 @@ fn handle_analyze(session: &mut RaSession, manifest_dir: &Path) -> Response {
 
 fn print_summary(data: &SemanticData) {
     eprintln!(
-        "[watch] {} type resolutions, {} function state resolutions, {} call edges",
+        "[watch] {} type resolutions, {} function state resolutions, {} call edges, {} type/trait facts",
         data.type_cardinalities.len(),
         data.function_cardinalities.len(),
         data.call_edges.len(),
+        data.type_trait_facts.len(),
     );
 }

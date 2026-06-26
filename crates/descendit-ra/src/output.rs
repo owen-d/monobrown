@@ -12,6 +12,8 @@ pub struct SemanticData {
     pub type_cardinalities: Vec<ResolvedTypeCardinality>,
     pub function_cardinalities: Vec<ResolvedFunctionCardinality>,
     pub call_edges: Vec<CallEdge>,
+    #[serde(default)]
+    pub type_trait_facts: Vec<TypeTraitFact>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,4 +41,27 @@ pub struct CallEdge {
     pub caller_line: usize,
     pub callee_module: String,
     pub callee_file: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TypeTraitFact {
+    /// Workspace-relative source file when available.
+    pub file: String,
+    /// Rust module path containing the declaration or impl.
+    pub module_path: String,
+    /// 1-based line for source-backed reports.
+    pub line: usize,
+    #[serde(flatten)]
+    pub kind: TypeTraitFactKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TypeTraitFactKind {
+    /// Trait declaration.
+    TraitDecl { name: String },
+    /// Type-to-trait implementation.
+    TypeImplTrait { ty: String, tr: String },
+    /// Trait-to-trait implication.
+    TraitImplTrait { subject: String, target: String },
 }

@@ -24,6 +24,7 @@ insta = "1.43.2"
 libc = "0.2.175"
 pulldown-cmark = "0.10"
 ratatui = "0.30.0"
+regex-lite = "0.1.7"
 similar = "2.7.0"
 syntect = { version = "5", default-features = false, features = ["default-themes", "default-syntaxes", "regex-onig", "plist-load"] }
 two-face = { version = "0.5", default-features = false, features = ["syntect-default-onig"] }

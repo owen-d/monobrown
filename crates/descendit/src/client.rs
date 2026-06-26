@@ -2,12 +2,16 @@ use std::io::{BufReader, BufWriter};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 
-use descendit_ra::SemanticData;
+use descendit_ra::{AnalysisDomains, SemanticData};
 
 use crate::server_protocol::{Request, Response, read_message, write_message};
 
-/// Connect to a running server and request analysis for the given manifest directory.
-pub(crate) fn analyze(socket_path: &Path, manifest_dir: &Path) -> anyhow::Result<SemanticData> {
+/// Connect to a running server and request selected analysis domains.
+pub(crate) fn analyze_with_domains(
+    socket_path: &Path,
+    manifest_dir: &Path,
+    domains: AnalysisDomains,
+) -> anyhow::Result<SemanticData> {
     let stream = UnixStream::connect(socket_path)?;
     stream.set_read_timeout(Some(std::time::Duration::from_secs(300)))?;
     let mut reader = BufReader::new(&stream);
@@ -17,6 +21,7 @@ pub(crate) fn analyze(socket_path: &Path, manifest_dir: &Path) -> anyhow::Result
         &mut writer,
         &Request::Analyze {
             manifest_dir: manifest_dir.to_owned(),
+            domains,
         },
     )?;
 

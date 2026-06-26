@@ -91,6 +91,16 @@ pub struct CompliancePolicy {
     pub aggregation: ComplianceAggregationPolicy,
 }
 
+/// Parse a compliance policy from JSON using the same shape serde emits.
+///
+/// The nested policy contains internally tagged enum values inside override
+/// maps. Parsing through [`serde_json::Value`] keeps file loading aligned with
+/// saved policy JSON and avoids coupling the CLI to today-specific enum paths.
+pub fn parse_compliance_policy_json(json: &str) -> serde_json::Result<CompliancePolicy> {
+    let value = serde_json::from_str(json)?;
+    serde_json::from_value(value)
+}
+
 fn default_max_function_overhead_ratio() -> f64 {
     5.0
 }
@@ -2553,6 +2563,7 @@ mod tests {
                     caller_line: 20,
                 },
             ],
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
         // 3 modules (a, b, c), 2 edges. a::do_stuff->b, b::handle->c.
@@ -2624,6 +2635,7 @@ mod tests {
                     caller_line: 0,
                 },
             ],
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
         let result =

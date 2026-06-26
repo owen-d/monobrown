@@ -1,12 +1,16 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
-use descendit_ra::SemanticData;
+use descendit_ra::{AnalysisDomains, SemanticData};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) enum Request {
-    Analyze { manifest_dir: PathBuf },
+    Analyze {
+        manifest_dir: PathBuf,
+        #[serde(default)]
+        domains: AnalysisDomains,
+    },
     Reap,
 }
 

@@ -656,6 +656,7 @@ fn test_coupling_density_counterfactual_matches_recomputation() {
                 caller_line: 5,
             },
         ],
+        type_trait_facts: Vec::new(),
     };
     let full_overlay = SemanticOverlay::from_data(&full_data);
     let (_, full_compliance) = compliance_with_semantic(&policy, &source, &full_overlay);
@@ -676,6 +677,7 @@ fn test_coupling_density_counterfactual_matches_recomputation() {
             caller_function: "process".into(),
             caller_line: 5,
         }],
+        type_trait_facts: Vec::new(),
     };
     let reduced_overlay = SemanticOverlay::from_data(&reduced_data);
     let (_, reduced_compliance) = compliance_with_semantic(&policy, &source, &reduced_overlay);

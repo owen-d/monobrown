@@ -12,6 +12,7 @@ use ra_ap_load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at
 use ra_ap_project_model::{CargoConfig, RustLibSource};
 use ra_ap_vfs::{self as vfs, Vfs, VfsPath};
 
+use crate::AnalysisDomains;
 use crate::output::SemanticData;
 
 /// A reusable rust-analyzer session.
@@ -104,6 +105,14 @@ impl RaSession {
     /// file, lets the VFS detect which ones actually changed (content-hash
     /// dedup), and applies the delta to the salsa database before analyzing.
     pub fn reload_and_analyze(&mut self) -> anyhow::Result<SemanticData> {
+        self.reload_and_analyze_with_domains(AnalysisDomains::all())
+    }
+
+    /// Re-read changed files from disk and produce selected semantic domains.
+    pub fn reload_and_analyze_with_domains(
+        &mut self,
+        domains: AnalysisDomains,
+    ) -> anyhow::Result<SemanticData> {
         if self.first_run {
             self.first_run = false;
         } else {
@@ -111,7 +120,12 @@ impl RaSession {
         }
 
         ra_ap_hir::attach_db(&self.db, || {
-            crate::extract_semantic_data(&self.db, &self.vfs, &self.manifest_dir)
+            crate::extract_semantic_data_with_domains(
+                &self.db,
+                &self.vfs,
+                &self.manifest_dir,
+                domains,
+            )
         })
     }
 
@@ -123,6 +137,16 @@ impl RaSession {
     /// session's own manifest directory. The workspace must already be loaded
     /// (via [`load`](Self::load)) at a root that contains the subcrate.
     pub fn extract_for_subcrate(&mut self, manifest_dir: &Path) -> anyhow::Result<SemanticData> {
+        self.extract_for_subcrate_with_domains(manifest_dir, AnalysisDomains::all())
+    }
+
+    /// Re-read changed files from disk and extract selected domains for a
+    /// specific subcrate within the loaded workspace.
+    pub fn extract_for_subcrate_with_domains(
+        &mut self,
+        manifest_dir: &Path,
+        domains: AnalysisDomains,
+    ) -> anyhow::Result<SemanticData> {
         let manifest_dir = std::fs::canonicalize(manifest_dir)
             .with_context(|| format!("failed to canonicalize {}", manifest_dir.display()))?;
 
@@ -133,7 +157,7 @@ impl RaSession {
         }
 
         ra_ap_hir::attach_db(&self.db, || {
-            crate::extract_semantic_data(&self.db, &self.vfs, &manifest_dir)
+            crate::extract_semantic_data_with_domains(&self.db, &self.vfs, &manifest_dir, domains)
         })
     }
 

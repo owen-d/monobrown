@@ -30,6 +30,8 @@ pub struct SemanticData {
     pub type_cardinalities: Vec<ResolvedTypeCardinality>,
     pub function_cardinalities: Vec<ResolvedFunctionCardinality>,
     pub call_edges: Vec<CallEdge>,
+    #[serde(default)]
+    pub type_trait_facts: Vec<TypeTraitFact>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +64,29 @@ pub struct CallEdge {
     /// Line number of the caller function definition, when available.
     #[serde(default)]
     pub caller_line: usize,
+}
+
+/// Source-backed type/trait fact emitted by the semantic backend.
+///
+/// These facts are kept in the raw semantic schema, not in [`SemanticOverlay`],
+/// because graph rewrite discovery needs source provenance while scoring only
+/// needs resolved cardinality and call-edge lookups.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TypeTraitFact {
+    pub file: String,
+    pub module_path: String,
+    pub line: usize,
+    #[serde(flatten)]
+    pub kind: TypeTraitFactKind,
+}
+
+/// Type/trait relationship kind captured from resolved Rust items.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TypeTraitFactKind {
+    TraitDecl { name: String },
+    TypeImplTrait { ty: String, tr: String },
+    TraitImplTrait { subject: String, target: String },
 }
 
 /// Processed semantic overlay, ready for consumption by the compliance pipeline.
@@ -367,6 +392,7 @@ mod tests {
                     caller_line: 30,
                 },
             ],
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -404,6 +430,7 @@ mod tests {
                     caller_line: 15,
                 },
             ],
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -428,6 +455,7 @@ mod tests {
                 internal_state_cardinality_log2: 3.0,
             }],
             call_edges: Vec::new(),
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -483,6 +511,7 @@ mod tests {
             }],
             function_cardinalities: Vec::new(),
             call_edges: Vec::new(),
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -516,6 +545,7 @@ mod tests {
             }],
             function_cardinalities: Vec::new(),
             call_edges: Vec::new(),
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -538,6 +568,7 @@ mod tests {
                 internal_state_cardinality_log2: 3.0,
             }],
             call_edges: Vec::new(),
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 
@@ -577,6 +608,7 @@ mod tests {
                 caller_function: "init".into(),
                 caller_line: 1,
             }],
+            type_trait_facts: Vec::new(),
         };
 
         let json = serde_json::to_string(&data).expect("serialize");
@@ -622,6 +654,7 @@ mod tests {
                     caller_line: 30,
                 },
             ],
+            type_trait_facts: Vec::new(),
         };
         let overlay = SemanticOverlay::from_data(&data);
 

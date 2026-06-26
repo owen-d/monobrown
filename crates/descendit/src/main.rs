@@ -1,5 +1,6 @@
 //! CLI for the descendit structural analysis tool.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
@@ -132,6 +133,11 @@ enum Command {
         #[command(subcommand)]
         command: AgentCommand,
     },
+    /// Discover type/trait graph simplification candidates.
+    TypeTrait {
+        #[command(subcommand)]
+        command: TypeTraitCommand,
+    },
     /// Dump the default compliance policy as JSON.
     ///
     /// Useful for understanding the built-in thresholds or as a starting
@@ -166,6 +172,16 @@ enum AgentCommand {
     /// Prints a markdown document covering installation, all subcommands,
     /// loss dimensions, and the analyze-diff workflow.
     Guide,
+}
+
+#[derive(Debug, Subcommand)]
+enum TypeTraitCommand {
+    /// Discover rewrite candidates from a JSON query.
+    Discover {
+        /// Query JSON path, or '-' for stdin.
+        #[arg(long)]
+        query: PathBuf,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +356,7 @@ fn dispatch(command: Command, socket: Option<&Path>) -> anyhow::Result<()> {
         Command::Agent { command } => match command {
             AgentCommand::Guide => run_guide(),
         },
+        Command::TypeTrait { command } => dispatch_type_trait(command, socket)?,
         Command::Policy { dump_default } => run_policy(dump_default)?,
         #[cfg(feature = "explore")]
         Command::Explore {
@@ -371,6 +388,12 @@ fn dispatch_reap(socket: Option<&Path>) -> anyhow::Result<()> {
     client::reap(socket_path)
 }
 
+fn dispatch_type_trait(command: TypeTraitCommand, socket: Option<&Path>) -> anyhow::Result<()> {
+    match command {
+        TypeTraitCommand::Discover { query } => run_type_trait_discover(&query, socket),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -379,10 +402,22 @@ fn load_policy(policy_path: Option<&Path>) -> anyhow::Result<descendit::Complian
     match policy_path {
         Some(path) => {
             let json = std::fs::read_to_string(path)?;
-            Ok(serde_json::from_str(&json)?)
+            Ok(descendit::parse_compliance_policy_json(&json)?)
         }
         None => Ok(descendit::CompliancePolicy::default()),
     }
+}
+
+fn read_type_trait_query(
+    path: &Path,
+) -> anyhow::Result<descendit::type_trait_discover::TypeTraitQuery> {
+    let mut json = String::new();
+    if path == Path::new("-") {
+        std::io::stdin().read_to_string(&mut json)?;
+    } else {
+        json = std::fs::read_to_string(path)?;
+    }
+    serde_json::from_str(&json).map_err(anyhow::Error::from)
 }
 
 /// For loss values, a negative delta means improvement (loss decreased).
@@ -485,6 +520,55 @@ fn run_list(json: bool) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn run_type_trait_discover(query_path: &Path, socket: Option<&Path>) -> anyhow::Result<()> {
+    let query = read_type_trait_query(query_path)?;
+    let data = load_type_trait_semantic_data(&query, socket)?;
+    let report = descendit::type_trait_discover::discover_type_trait_rewrites(&data, &query)?;
+    match query.emit {
+        descendit::type_trait_discover::TypeTraitEmit::Text => {
+            print!("{}", report.render_text());
+        }
+        descendit::type_trait_discover::TypeTraitEmit::Json => {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "semantic")]
+fn load_type_trait_semantic_data(
+    query: &descendit::type_trait_discover::TypeTraitQuery,
+    socket: Option<&Path>,
+) -> anyhow::Result<descendit::SemanticData> {
+    if let Some(path) = &query.semantic_path {
+        let json = std::fs::read_to_string(path)?;
+        return serde_json::from_str(&json).map_err(anyhow::Error::from);
+    }
+
+    let data = semantic_runtime::run_ra_data_with_domains(
+        &query.path,
+        socket,
+        descendit_ra::AnalysisDomains::type_traits(),
+    )?;
+    let json = serde_json::to_string(&data)?;
+    serde_json::from_str(&json).map_err(anyhow::Error::from)
+}
+
+#[cfg(not(feature = "semantic"))]
+fn load_type_trait_semantic_data(
+    query: &descendit::type_trait_discover::TypeTraitQuery,
+    _socket: Option<&Path>,
+) -> anyhow::Result<descendit::SemanticData> {
+    if let Some(path) = &query.semantic_path {
+        let json = std::fs::read_to_string(path)?;
+        return serde_json::from_str(&json).map_err(anyhow::Error::from);
+    }
+    anyhow::bail!(
+        "semantic analysis is required for type-trait discovery unless `semantic_path` is set. \
+         Rebuild with `cargo install descendit` (default features)."
+    );
 }
 
 /// Print a labeled, wrapped line. The first line uses the label; continuation
@@ -1404,6 +1488,20 @@ mod tests {
                 assert!(json);
             }
             _ => panic!("expected diff command"),
+        }
+    }
+
+    #[test]
+    fn type_trait_discover_stdin_query_parses() {
+        let cli = Cli::try_parse_from(["descendit", "type-trait", "discover", "--query", "-"])
+            .expect("parse type-trait discover");
+        match cli.command {
+            Command::TypeTrait {
+                command: TypeTraitCommand::Discover { query },
+            } => {
+                assert_eq!(query, PathBuf::from("-"));
+            }
+            _ => panic!("expected type-trait discover command"),
         }
     }
 
