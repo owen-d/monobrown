@@ -16,6 +16,7 @@ pub mod sparkline;
 mod spinner;
 pub mod stepper;
 pub mod tab_bar;
+pub mod trace_view;
 mod vim_editor;
 
 pub use hotkey::HotkeyBarRenderable;
