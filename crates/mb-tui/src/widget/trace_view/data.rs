@@ -97,8 +97,11 @@ impl TraceTiming {
 /// One selectable display observation, with caller-formatted detail fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceItem {
+    /// Dataset-wide stable item identity.
     pub id: ItemId,
+    /// Short row label.
     pub label: String,
+    /// Explicit time observations without inferred endpoints.
     pub timing: TraceTiming,
     /// Ordered key/value pairs; controls render as spaces, and overflow is counted.
     pub details: Vec<(String, String)>,
@@ -107,16 +110,22 @@ pub struct TraceItem {
 /// A named concurrent track. Items need not arrive in time order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceTrack {
+    /// Dataset-wide stable track identity.
     pub id: TrackId,
+    /// Optional flat display group.
     pub group: Option<GroupId>,
+    /// Short track label.
     pub label: String,
+    /// Selectable observations supplied in deterministic source order.
     pub items: Vec<TraceItem>,
 }
 
 /// A flat presentation group, with no claim about execution hierarchy.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceGroup {
+    /// Dataset-wide stable group identity.
     pub id: GroupId,
+    /// Short group label.
     pub label: String,
 }
 
@@ -128,8 +137,11 @@ pub struct TraceGroup {
 /// and 8 MiB of total text. Oversized input is rejected without partial display.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceData {
+    /// Unit shared by every item coordinate.
     pub time_unit: TraceTimeUnit,
+    /// Flat display groups in caller-selected order.
     pub groups: Vec<TraceGroup>,
+    /// Tracks in caller-selected order within each group.
     pub tracks: Vec<TraceTrack>,
 }
 
