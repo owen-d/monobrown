@@ -27,6 +27,17 @@ pub(crate) enum TraceSpan {
     Item(ItemId),
 }
 
+/// Current text-search result in the disclosed trace hierarchy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraceSearchStatus {
+    /// Case-insensitive query text.
+    pub query: String,
+    /// One-based position of the selected match.
+    pub current: usize,
+    /// Number of disclosed rows matching the query.
+    pub matches: usize,
+}
+
 /// A trace hierarchy with shared tree navigation and immediate disclosure.
 #[derive(Clone)]
 pub struct TraceView {
@@ -38,6 +49,9 @@ pub struct TraceView {
     track_spans: BTreeMap<TrackId, SpanId>,
     window: TimeWindow,
     details_expanded: bool,
+    search_query: Option<String>,
+    search_matches: Vec<SpanId>,
+    search_index: usize,
 }
 
 impl TraceView {
@@ -65,6 +79,9 @@ impl TraceView {
             track_spans: projection.track_spans,
             window,
             details_expanded: false,
+            search_query: None,
+            search_matches: Vec::new(),
+            search_index: 0,
         })
     }
 
@@ -259,6 +276,88 @@ impl TraceView {
         self.details_expanded = expanded;
     }
 
+    /// Start a case-insensitive search over currently disclosed row labels and
+    /// bounded scalar details. The first match is selected after the current
+    /// row, wrapping at the end; no row is expanded or reordered.
+    pub fn search(&mut self, query: impl Into<String>) -> Option<TraceSearchStatus> {
+        let query = query.into();
+        if query.is_empty() {
+            self.clear_search();
+            return None;
+        }
+        let selected = self.selected_span_id();
+        self.search_query = Some(query);
+        self.refresh_search_matches();
+        self.search_index = self
+            .search_matches
+            .iter()
+            .position(|span| Some(*span) == selected)
+            .map_or(0, |index| (index + 1) % self.search_matches.len().max(1));
+        if self.search_matches.is_empty() {
+            return self.search_status();
+        }
+        self.select_search_match();
+        self.search_status()
+    }
+
+    /// Select the next match for the active query, wrapping at the end.
+    pub fn search_next(&mut self) -> Option<TraceSearchStatus> {
+        let selected = self.selected_span_id();
+        self.refresh_search_matches();
+        if self.search_matches.is_empty() {
+            return self.search_status();
+        }
+        self.search_index = self
+            .search_matches
+            .iter()
+            .position(|span| Some(*span) == selected)
+            .map_or(self.search_index % self.search_matches.len(), |index| {
+                (index + 1) % self.search_matches.len()
+            });
+        self.select_search_match();
+        self.search_status()
+    }
+
+    /// Select the previous match for the active query, wrapping at the start.
+    pub fn search_previous(&mut self) -> Option<TraceSearchStatus> {
+        let selected = self.selected_span_id();
+        self.refresh_search_matches();
+        if self.search_matches.is_empty() {
+            return self.search_status();
+        }
+        self.search_index = self
+            .search_matches
+            .iter()
+            .position(|span| Some(*span) == selected)
+            .map_or(self.search_index % self.search_matches.len(), |index| {
+                index
+                    .checked_sub(1)
+                    .unwrap_or(self.search_matches.len() - 1)
+            });
+        self.select_search_match();
+        self.search_status()
+    }
+
+    /// Return the active search status, if any.
+    pub fn search_status(&self) -> Option<TraceSearchStatus> {
+        self.search_query.as_ref().map(|query| TraceSearchStatus {
+            query: query.clone(),
+            current: self
+                .search_matches
+                .is_empty()
+                .then_some(0)
+                .unwrap_or(self.search_index + 1),
+            matches: self.search_matches.len(),
+        })
+    }
+
+    /// Clear the current search without changing the selected row.
+    pub fn clear_search(&mut self) {
+        self.search_query = None;
+        self.search_matches.clear();
+        self.search_index = 0;
+    }
+
     /// Visible hierarchy rows for the waterfall renderer.
     pub(crate) fn visible_rows(&self) -> Vec<crate::widget::flame_graph::FlameRow> {
         self.graph.visible_rows()
@@ -302,6 +401,78 @@ impl TraceView {
             .selected_span()
             .and_then(|span| self.spans.get(&span).copied())
     }
+
+    fn select_search_match(&mut self) {
+        if let Some(&span) = self.search_matches.get(self.search_index) {
+            self.graph.select_span(span);
+        }
+    }
+
+    fn refresh_search_matches(&mut self) {
+        let Some(query) = self.search_query.as_ref() else {
+            self.search_matches.clear();
+            self.search_index = 0;
+            return;
+        };
+        let needle = query.to_lowercase();
+        self.search_matches = self
+            .visible_rows()
+            .into_iter()
+            .filter_map(|row| match row.kind {
+                crate::widget::flame_graph::RowKind::Span { span_id, .. }
+                    if self.span_text(span_id).to_lowercase().contains(&needle) =>
+                {
+                    Some(span_id)
+                }
+                _ => None,
+            })
+            .collect();
+        if !self.search_matches.is_empty() {
+            self.search_index %= self.search_matches.len();
+        } else {
+            self.search_index = 0;
+        }
+    }
+
+    fn span_text(&self, span: SpanId) -> String {
+        match self.spans.get(&span).copied() {
+            Some(TraceSpan::Root) => "trace".to_owned(),
+            Some(TraceSpan::Group(id)) => self
+                .data
+                .groups
+                .iter()
+                .find(|group| group.id == id)
+                .map_or_else(String::new, |group| group.label.clone()),
+            Some(TraceSpan::Track(id)) => self
+                .data
+                .tracks
+                .iter()
+                .find(|track| track.id == id)
+                .map_or_else(String::new, |track| {
+                    format_detail_text(&track.label, &track.details)
+                }),
+            Some(TraceSpan::Item(id)) => self
+                .data
+                .tracks
+                .iter()
+                .find_map(|track| find_item(&track.items, id))
+                .map_or_else(String::new, |item| {
+                    format_detail_text(&item.label, &item.details)
+                }),
+            None => String::new(),
+        }
+    }
+}
+
+fn format_detail_text(label: &str, details: &[(String, String)]) -> String {
+    let mut text = label.to_owned();
+    for (name, value) in details {
+        text.push(' ');
+        text.push_str(name);
+        text.push(' ');
+        text.push_str(value);
+    }
+    text
 }
 
 fn enqueue_json_roots<'a>(item: &'a TraceItem, queue: &mut VecDeque<&'a TraceItem>) {
@@ -504,4 +675,72 @@ fn role_cost_types() -> Vec<CostType> {
             color: theme::error(),
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::data::{CategoryId, TraceCategory, TraceItem, TraceTimeUnit};
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn fixture() -> TraceData {
+        TraceData {
+            time_unit: TraceTimeUnit::Milliseconds,
+            categories: vec![TraceCategory {
+                id: CategoryId(0),
+                label: "activity".into(),
+                role: TraceVisualRole::Neutral,
+            }],
+            groups: vec![],
+            tracks: vec![TraceTrack {
+                id: TrackId(0),
+                group: None,
+                label: "session".into(),
+                details: vec![],
+                items: vec![
+                    TraceItem {
+                        id: ItemId(0),
+                        category: CategoryId(0),
+                        label: "reasoning".into(),
+                        timing: TraceTiming::Instant(0),
+                        details: vec![],
+                        children: vec![],
+                    },
+                    TraceItem {
+                        id: ItemId(1),
+                        category: CategoryId(0),
+                        label: "tool call".into(),
+                        timing: TraceTiming::Instant(1),
+                        details: vec![("kind".into(), "query".into())],
+                        children: vec![],
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn search_matches_visible_labels_and_details_without_disclosure_changes() {
+        let mut view = TraceView::new(fixture()).expect("fixture is valid");
+        view.handle_key(&KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        let rows_before = view.visible_row_count();
+        let status = view.search("QUERY").expect("match");
+        assert_eq!(status.current, 1);
+        assert_eq!(status.matches, 1);
+        assert_eq!(view.selected_item().map(|item| item.id), Some(ItemId(1)));
+        assert_eq!(view.visible_row_count(), rows_before);
+    }
+
+    #[test]
+    fn search_cycles_forward_and_backward_and_preserves_no_match_selection() {
+        let mut view = TraceView::new(fixture()).expect("fixture is valid");
+        view.handle_key(&KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        assert_eq!(view.search("session").as_ref().map(|s| s.matches), Some(1));
+        assert_eq!(view.search_next().as_ref().map(|s| s.current), Some(1));
+        assert_eq!(view.search_previous().as_ref().map(|s| s.current), Some(1));
+        let selected = view.selected_span_id();
+        view.clear_search();
+        assert!(view.search("absent").is_some());
+        assert_eq!(view.selected_span_id(), selected);
+    }
 }

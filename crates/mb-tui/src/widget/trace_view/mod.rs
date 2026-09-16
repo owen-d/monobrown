@@ -49,4 +49,4 @@ pub use data::{
     TraceTimeUnit, TraceTiming, TraceTrack, TraceVisualRole, TrackId,
 };
 pub use render::{render_trace_view, render_trace_view_mut};
-pub use state::TraceView;
+pub use state::{TraceSearchStatus, TraceView};
