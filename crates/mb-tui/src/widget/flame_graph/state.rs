@@ -167,6 +167,8 @@ impl FlameGraph {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => self.move_cursor_up(&rows),
             KeyCode::Down | KeyCode::Char('j') => self.move_cursor_down(&rows),
+            KeyCode::Char('g') => self.move_cursor_boundary(false),
+            KeyCode::Char('G') => self.move_cursor_boundary(true),
             KeyCode::Right | KeyCode::Char('l') => self.expand_or_descend(),
             KeyCode::Left | KeyCode::Char('h') => self.collapse_or_ascend(),
             KeyCode::Char('f') => self.focus_on_selected(),
@@ -577,6 +579,20 @@ impl FlameGraph {
         KeyResult::Consumed
     }
 
+    fn move_cursor_boundary(&mut self, bottom: bool) -> KeyResult {
+        let rows = self.visible_rows();
+        let candidates = self.vertical_candidates(&rows, self.vertical_navigation);
+        let Some(&new_id) = candidates.get(if bottom {
+            candidates.len().saturating_sub(1)
+        } else {
+            0
+        }) else {
+            return KeyResult::Consumed;
+        };
+        self.navigate_to_span(new_id);
+        KeyResult::Consumed
+    }
+
     fn vertical_candidates(
         &self,
         rows: &[FlameRow],
@@ -596,7 +612,7 @@ impl FlameGraph {
                 };
                 let path = ancestor_path(&self.root, current_id);
                 let Some(parent_index) = path.len().checked_sub(2) else {
-                    return Vec::new();
+                    return vec![current_id];
                 };
                 let Some(&parent_id) = path.get(parent_index) else {
                     return Vec::new();
@@ -944,6 +960,28 @@ mod tests {
         assert_eq!(fg.path, path_before);
         assert!(fg.is_expanded(root.id));
         assert_eq!(fg.selected_span(), Some(root.children[1].id));
+    }
+
+    #[test]
+    fn g_and_big_g_bound_the_current_navigation_list() {
+        let (root, ct) = nested_tree();
+        let mut fg = FlameGraph::new(root.clone(), ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.set_vertical_navigation(VerticalNavigation::Siblings);
+        fg.handle_key(&make_key(KeyCode::Right)); // root -> a
+        fg.handle_key(&make_key(KeyCode::Right)); // a -> a1
+        fg.handle_key(&make_key(KeyCode::Char('G'))); // a1 -> a2
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+        fg.handle_key(&make_key(KeyCode::Char('g'))); // a2 -> a1
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[0].id));
+        assert_eq!(
+            fg.path,
+            vec![
+                root.id,
+                root.children[0].id,
+                root.children[0].children[0].id
+            ]
+        );
     }
 
     #[test]
