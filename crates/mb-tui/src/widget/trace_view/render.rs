@@ -376,6 +376,18 @@ fn draw_details(
         );
         y += 1;
     }
+    for (name, value) in track_details(state, kind) {
+        if y >= area.bottom() {
+            break;
+        }
+        buf.set_string(
+            indent,
+            y,
+            clip_text(&format!("{name}: {value}"), usize::from(width)),
+            Style::default().fg(theme::text()),
+        );
+        y += 1;
+    }
     if let TraceSpan::Item(id) = kind
         && let Some(item) = state
             .data()
@@ -420,6 +432,19 @@ fn draw_details(
         }
     }
     y
+}
+
+fn track_details(state: &TraceView, kind: TraceSpan) -> Vec<(String, String)> {
+    let track = match kind {
+        TraceSpan::Track(id) => state.data().tracks.iter().find(|track| track.id == id),
+        TraceSpan::Group(id) => state
+            .data()
+            .tracks
+            .iter()
+            .find(|track| track.group == Some(id) && !track.details.is_empty()),
+        TraceSpan::Root | TraceSpan::Item(_) => None,
+    };
+    track.map_or_else(Vec::new, |track| track.details.clone())
 }
 
 fn draw_json_detail_line(buf: &mut Buffer, x: u16, y: u16, width: u16, line: &str) {

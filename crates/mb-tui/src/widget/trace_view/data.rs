@@ -127,6 +127,8 @@ pub struct TraceTrack {
     pub group: Option<GroupId>,
     /// Short track label.
     pub label: String,
+    /// Ordered track-level attributes shown by the detail inspector.
+    pub details: Vec<(String, String)>,
     /// Selectable observations supplied in deterministic source order.
     pub items: Vec<TraceItem>,
 }
@@ -252,7 +254,12 @@ impl TraceData {
         for track in &self.tracks {
             items += track.items.len();
             check_limit(items, 65536, "items (65536)")?;
+            check_limit(track.details.len(), 32, "detail pairs per track (32)")?;
             check_text(&track.label, &mut text_bytes)?;
+            for (key, value) in &track.details {
+                check_text(key, &mut text_bytes)?;
+                check_text(value, &mut text_bytes)?;
+            }
             for item in &track.items {
                 check_limit(item.details.len(), 32, "detail pairs per item (32)")?;
                 check_text(&item.label, &mut text_bytes)?;

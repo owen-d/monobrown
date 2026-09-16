@@ -83,6 +83,7 @@ fn overview() -> TraceView {
                 id: TrackId(0),
                 group: Some(GroupId(0)),
                 label: "query".into(),
+                details: vec![],
                 items: vec![
                     item(0, NEUTRAL, "admitted", TraceTiming::Instant(base)),
                     item(
@@ -106,6 +107,7 @@ fn overview() -> TraceView {
                 id: TrackId(1),
                 group: Some(GroupId(0)),
                 label: "stage 0".into(),
+                details: vec![],
                 items: vec![
                     item(
                         3,
@@ -157,6 +159,7 @@ fn uncertainty() -> TraceView {
             id: TrackId(0),
             group: Some(GroupId(0)),
             label: "evidence".into(),
+            details: vec![],
             items: vec![
                 item(0, NEUTRAL, "observed", TraceTiming::Instant(20)),
                 item(1, FAILURE, "failed", TraceTiming::Instant(20)),

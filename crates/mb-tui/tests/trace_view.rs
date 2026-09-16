@@ -42,6 +42,7 @@ fn data(items: Vec<TraceItem>) -> TraceData {
             id: TrackId(0),
             group: Some(GroupId(10)),
             label: "workspace".into(),
+            details: vec![],
             items,
         }],
     }
@@ -152,6 +153,7 @@ fn trace_vertical_navigation_stays_within_the_selected_track() {
         id: TrackId(1),
         group: Some(GroupId(10)),
         label: "stage 0".into(),
+        details: vec![],
         items: vec![item(3, "aunt", TraceTiming::Instant(2))],
     });
     let mut view = TraceView::new(input).unwrap();

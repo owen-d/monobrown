@@ -58,6 +58,7 @@ mod tests {
                 id: TrackId(0),
                 group: None,
                 label: "worker".into(),
+                details: vec![],
                 items: times
                     .iter()
                     .enumerate()

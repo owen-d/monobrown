@@ -291,7 +291,10 @@ impl Projection {
             // label and the group's first track. Keep the group as the
             // structural row, but render that source track only once by
             // placing its children directly under the group.
-            let root_track = tracks.iter().position(|track| track.label == group.label);
+            let root_track = tracks.iter().position(|track| {
+                track.details.iter().any(|(name, _)| name == "query id")
+                    || track.label == group.label
+            });
             let mut group_children = Vec::new();
             for (index, track) in tracks.iter().enumerate() {
                 if Some(index) == root_track {
