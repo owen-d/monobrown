@@ -12,7 +12,9 @@ use super::data::{
 use super::layout::TimeWindow;
 use crate::input::KeyResult;
 use crate::theme;
-use crate::widget::flame_graph::{CostBreakdown, CostType, FlameGraph, SpanId, SpanNode};
+use crate::widget::flame_graph::{
+    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode,
+};
 
 const ROLE_COUNT: usize = 5;
 
@@ -47,7 +49,8 @@ impl TraceView {
         let window = TimeWindow::fit(&data);
         let mut projection = Projection::default();
         let root = projection.root(&data);
-        let graph = FlameGraph::new(root, role_cost_types());
+        let mut graph = FlameGraph::new(root, role_cost_types());
+        graph.set_cursor_navigation(CursorNavigation::PreserveExpansion);
         Ok(Self {
             data,
             graph,
@@ -272,14 +275,34 @@ impl Projection {
     fn root(&mut self, data: &TraceData) -> SpanNode {
         let mut children = Vec::new();
         for group in &data.groups {
-            let tracks = data
+            let tracks: Vec<_> = data
                 .tracks
                 .iter()
                 .filter(|track| track.group == Some(group.id))
-                .map(|track| self.track(track, data))
                 .collect();
-            let node = self.branch(group.label.clone(), TraceSpan::Group(group.id), tracks);
+
+            // The storage adapter represents a root track as both the group
+            // label and the group's first track. Keep the group as the
+            // structural row, but render that source track only once by
+            // placing its children directly under the group.
+            let root_track = tracks.iter().position(|track| track.label == group.label);
+            let mut group_children = Vec::new();
+            for (index, track) in tracks.iter().enumerate() {
+                if Some(index) == root_track {
+                    group_children.extend(self.track_children(track, data));
+                } else {
+                    group_children.push(self.track(track, data));
+                }
+            }
+            let node = self.branch(
+                group.label.clone(),
+                TraceSpan::Group(group.id),
+                group_children,
+            );
             self.group_spans.insert(group.id, node.id);
+            if let Some(index) = root_track {
+                self.track_spans.insert(tracks[index].id, node.id);
+            }
             children.push(node);
         }
         children.extend(
@@ -292,18 +315,22 @@ impl Projection {
     }
 
     fn track(&mut self, track: &TraceTrack, data: &TraceData) -> SpanNode {
+        let children = self.track_children(track, data);
+        let node = self.branch(track.label.clone(), TraceSpan::Track(track.id), children);
+        self.track_spans.insert(track.id, node.id);
+        node
+    }
+
+    fn track_children(&mut self, track: &TraceTrack, data: &TraceData) -> Vec<SpanNode> {
         let mut items: Vec<_> = track.items.iter().collect();
         items.sort_by_key(|item| {
             let first = item.timing.coordinates().into_iter().flatten().min();
             (first.is_none(), first, item.id)
         });
-        let children = items
+        items
             .into_iter()
             .map(|item| self.item(item, data))
-            .collect();
-        let node = self.branch(track.label.clone(), TraceSpan::Track(track.id), children);
-        self.track_spans.insert(track.id, node.id);
-        node
+            .collect()
     }
 
     fn item(&mut self, item: &TraceItem, data: &TraceData) -> SpanNode {

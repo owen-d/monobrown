@@ -17,7 +17,7 @@ mod state;
 pub use data::{CostBreakdown, CostType, SpanId, SpanNode, SpanNodeBuilder};
 pub use layout::{FlameRow, RowKind};
 pub use render::BarStyle;
-pub use state::FlameGraph;
+pub use state::{CursorNavigation, FlameGraph};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

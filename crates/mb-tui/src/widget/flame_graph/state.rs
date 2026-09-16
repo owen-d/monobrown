@@ -30,6 +30,18 @@ pub struct ExpandAnimation {
 /// is not the last element (the leaf/cursor node).
 const UNDO_LIMIT: usize = 32;
 
+/// Whether vertical cursor navigation follows the selected node's ancestry.
+///
+/// Descendit keeps the historical follow-selection behavior, while other
+/// tree views can preserve their disclosure state and make hierarchy changes
+/// explicit through `h`/`l`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorNavigation {
+    PreserveExpansion,
+    #[default]
+    FollowSelection,
+}
+
 #[derive(Clone)]
 pub struct FlameGraph {
     pub(crate) root: SpanNode,
@@ -52,6 +64,7 @@ pub struct FlameGraph {
     pub(crate) scroll_offset: usize,
     /// Last known viewport height (rows), cached during render for scroll math.
     viewport_height: u16,
+    cursor_navigation: CursorNavigation,
 }
 
 impl FlameGraph {
@@ -71,11 +84,26 @@ impl FlameGraph {
             redo_stack: Vec::new(),
             scroll_offset: 0,
             viewport_height: 0,
+            cursor_navigation: CursorNavigation::default(),
         }
+    }
+
+    /// Configure whether j/k navigation follows the selected node's path.
+    pub fn set_cursor_navigation(&mut self, navigation: CursorNavigation) {
+        self.cursor_navigation = navigation;
     }
 
     /// Dispatch a key press. Returns whether the key was consumed.
     pub fn handle_key(&mut self, key: &KeyEvent) -> KeyResult {
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && !key.modifiers.contains(KeyModifiers::ALT)
+        {
+            return match key.code {
+                KeyCode::Char('u') => self.move_cursor_page(-1),
+                KeyCode::Char('d') => self.move_cursor_page(1),
+                _ => KeyResult::Ignored,
+            };
+        }
         let has_modifier = key
             .modifiers
             .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
@@ -448,7 +476,9 @@ impl FlameGraph {
             if self.selected_for_legend.is_some() {
                 self.selected_for_legend = Some(new_id);
             }
-            self.sync_path_to_cursor(new_id);
+            if self.cursor_navigation == CursorNavigation::FollowSelection {
+                self.sync_path_to_cursor(new_id);
+            }
             self.move_cursor_to_span(new_id);
         }
         KeyResult::Consumed
@@ -472,9 +502,44 @@ impl FlameGraph {
             if self.selected_for_legend.is_some() {
                 self.selected_for_legend = Some(new_id);
             }
-            self.sync_path_to_cursor(new_id);
+            if self.cursor_navigation == CursorNavigation::FollowSelection {
+                self.sync_path_to_cursor(new_id);
+            }
             self.move_cursor_to_span(new_id);
         }
+        KeyResult::Consumed
+    }
+
+    /// Move by half a viewport, keeping the cursor within span rows.
+    fn move_cursor_page(&mut self, direction: isize) -> KeyResult {
+        let rows = self.visible_rows();
+        let span_rows: Vec<_> = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, _)| (!is_legend_row(&rows, index)).then_some(index))
+            .collect();
+        let Some(current) = span_rows.iter().position(|index| *index == self.cursor) else {
+            return KeyResult::Consumed;
+        };
+        let page = usize::from(self.viewport_height.max(1) / 2).max(1);
+        let target = current
+            .saturating_add_signed(direction.saturating_mul(page as isize))
+            .min(span_rows.len().saturating_sub(1));
+        let Some(&row_index) = span_rows.get(target) else {
+            return KeyResult::Consumed;
+        };
+        let Some(new_id) = span_id_at(&rows, row_index) else {
+            return KeyResult::Consumed;
+        };
+
+        self.push_undo();
+        if self.selected_for_legend.is_some() {
+            self.selected_for_legend = Some(new_id);
+        }
+        if self.cursor_navigation == CursorNavigation::FollowSelection {
+            self.sync_path_to_cursor(new_id);
+        }
+        self.move_cursor_to_span(new_id);
         KeyResult::Consumed
     }
 
@@ -746,7 +811,47 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_key_is_ignored() {
+    fn preserve_expansion_keeps_jk_in_current_tree() {
+        let (root, ct) = simple_tree();
+        let mut fg = FlameGraph::new(root.clone(), ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.handle_key(&make_key(KeyCode::Right));
+        for _ in 0..32 {
+            fg.tick(Duration::from_millis(16));
+        }
+        let path_before = fg.path.clone();
+        fg.handle_key(&make_key(KeyCode::Down));
+        assert_eq!(fg.path, path_before);
+        assert!(fg.is_expanded(root.id));
+        assert_eq!(fg.selected_span(), Some(root.children[1].id));
+    }
+
+    #[test]
+    fn ctrl_page_keys_move_by_visible_rows() {
+        let (root, ct) = simple_tree();
+        let mut fg = FlameGraph::new(root, ct);
+        fg.set_viewport_height(4);
+        fg.handle_key(&make_key(KeyCode::Right));
+        let key = KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        assert_eq!(fg.handle_key(&key), KeyResult::Consumed);
+        assert_eq!(fg.selected_span(), Some(fg.root.children[1].id));
+        let key = KeyEvent {
+            code: KeyCode::Char('u'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        assert_eq!(fg.handle_key(&key), KeyResult::Consumed);
+        assert_eq!(fg.selected_span(), Some(fg.root.id));
+    }
+
+    #[test]
+    fn unrelated_ctrl_key_is_ignored() {
         let (root, ct) = simple_tree();
         let mut fg = FlameGraph::new(root, ct);
         let key = KeyEvent {

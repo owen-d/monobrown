@@ -125,17 +125,37 @@ fn selected_event_reveals_clean_hierarchy_and_labeled_bars() {
 }
 
 #[test]
+fn root_track_is_not_rendered_twice_as_group_and_track() {
+    let mut input = data(vec![item(1, "observed", TraceTiming::Instant(0))]);
+    input.groups[0].label = "workspace".into();
+    input.tracks[0].label = "workspace".into();
+    let mut view = TraceView::new(input).unwrap();
+    finish(&mut view);
+    let rendered = text(&frame(&mut view, 100, 10));
+    assert_eq!(
+        rendered
+            .lines()
+            .filter(|line| line.contains("workspace"))
+            .count(),
+        1,
+        "the source track should appear once under its structural group"
+    );
+}
+
+#[test]
 fn flame_graph_navigation_and_animation_are_reused() {
     let mut view = fixture();
     assert!(view.select_item(ItemId(1)));
     assert!(view.needs_idle_render());
     finish(&mut view);
+    assert!(!view.is_group_collapsed(GroupId(10)));
     assert!(!view.needs_idle_render());
     assert_eq!(
         view.handle_key(&KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
         KeyResult::Consumed
     );
     assert_eq!(view.selected_item().unwrap().id, ItemId(2));
+    assert!(!view.is_group_collapsed(GroupId(10)));
     assert_eq!(
         view.handle_key(&KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE)),
         KeyResult::Consumed
