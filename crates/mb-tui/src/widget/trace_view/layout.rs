@@ -1,6 +1,6 @@
 //! Exact admitted time range retained alongside proportional presentation.
 
-use super::data::TraceData;
+use super::data::{TraceData, TraceItem};
 
 /// A nonempty inclusive range over supplied trace coordinates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,10 +12,14 @@ pub(crate) struct TimeWindow {
 impl TimeWindow {
     /// Fit recorded coordinates; empty and all-equal inputs still get a unit span.
     pub fn fit(data: &TraceData) -> Self {
-        let mut times = data
-            .tracks
-            .iter()
-            .flat_map(|track| &track.items)
+        let mut items = Vec::new();
+        for track in &data.tracks {
+            for item in &track.items {
+                collect_items(item, &mut items);
+            }
+        }
+        let mut times = items
+            .into_iter()
             .flat_map(|item| item.timing.coordinates())
             .flatten();
         let Some(first) = times.next() else {
@@ -34,6 +38,13 @@ impl TimeWindow {
             }
         }
         Self { start, end }
+    }
+}
+
+fn collect_items<'a>(item: &'a TraceItem, items: &mut Vec<&'a TraceItem>) {
+    items.push(item);
+    for child in &item.children {
+        collect_items(child, items);
     }
 }
 

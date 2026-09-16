@@ -577,7 +577,11 @@ fn draw_cell(buf: &mut Buffer, x: u16, y: u16, width: u16, value: impl AsRef<str
 fn aggregate_timing<'a>(items: impl Iterator<Item = &'a TraceItem>) -> TraceTiming {
     let mut min = None;
     let mut max = None;
+    let mut all = Vec::new();
     for item in items {
+        collect_items(item, &mut all);
+    }
+    for item in all {
         for time in item.timing.coordinates().into_iter().flatten() {
             min = Some(min.map_or(time, |value: i64| value.min(time)));
             max = Some(max.map_or(time, |value: i64| value.max(time)));
@@ -587,6 +591,13 @@ fn aggregate_timing<'a>(items: impl Iterator<Item = &'a TraceItem>) -> TraceTimi
         (Some(start), Some(end)) if start != end => TraceTiming::Interval { start, end },
         (Some(at), _) => TraceTiming::Instant(at),
         _ => TraceTiming::Untimed,
+    }
+}
+
+fn collect_items<'a>(item: &'a TraceItem, items: &mut Vec<&'a TraceItem>) {
+    items.push(item);
+    for child in &item.children {
+        collect_items(child, items);
     }
 }
 
