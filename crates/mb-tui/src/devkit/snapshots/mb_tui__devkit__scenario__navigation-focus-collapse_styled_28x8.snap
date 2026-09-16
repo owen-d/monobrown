@@ -4,9 +4,9 @@ expression: text
 ---
 <fg:white,bold>Trace · 690ms</>
 <fg:#a0a0a0>Operation</>
-<fg:#a0a0a0>▾ trace  +0ns · 690ms</>
 <fg:#a0a0a0>  ▾ request 01a0a709  +0ns ·</>
 <fg:#a0a0a0>    ▾ query  +0ns · 690ms</>
 <fg:#a0a0a0>        admitted  +0ns</>
 <fg:white,bold>        planning  +1ms · 219</>
 <fg:green>        completed  +690ms</>
+<fg:#a0a0a0>    ▸ stage 0  +40ms · 260ms</>

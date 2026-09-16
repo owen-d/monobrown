@@ -139,6 +139,29 @@ pub(crate) fn flatten_visible_rows_with_ordering(
     path_first_ordering: bool,
     total_width: u16,
 ) -> Vec<FlameRow> {
+    flatten_visible_rows_with_options(
+        root,
+        path,
+        animations,
+        legend_for,
+        focus,
+        path_first_ordering,
+        true,
+        total_width,
+    )
+}
+
+/// Flatten with explicit sibling ordering and root visibility policies.
+pub(crate) fn flatten_visible_rows_with_options(
+    root: &SpanNode,
+    path: &[SpanId],
+    animations: &HashMap<SpanId, ExpandAnimation>,
+    legend_for: Option<SpanId>,
+    focus: Option<SpanId>,
+    path_first_ordering: bool,
+    root_visible: bool,
+    total_width: u16,
+) -> Vec<FlameRow> {
     let mut ctx = FlattenCtx {
         root,
         path,
@@ -152,8 +175,10 @@ pub(crate) fn flatten_visible_rows_with_ordering(
 
     if let Some(focus_id) = focus {
         flatten_focused(&mut ctx, focus_id, root_bar_width);
-    } else {
+    } else if root_visible {
         flatten_node(root, 0, root_bar_width, &mut ctx);
+    } else {
+        flatten_children(root, 0, root_bar_width, &mut ctx);
     }
     ctx.rows
 }
@@ -201,6 +226,10 @@ fn flatten_node(node: &SpanNode, depth: u16, bar_width: u16, ctx: &mut FlattenCt
         return;
     }
 
+    flatten_children(node, depth, bar_width, ctx);
+}
+
+fn flatten_children(node: &SpanNode, depth: u16, bar_width: u16, ctx: &mut FlattenCtx<'_>) {
     let anim_scale = ctx.animations.get(&node.id).map_or(1.0, |a| a.value);
     let parent_total = node.costs.total();
 

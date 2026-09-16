@@ -4,9 +4,9 @@ expression: text
 ---
 Trace · 60ns
 Operation
-▾ trace  +0ns · 60ns
   ▾ partial capture  +0ns ·
     ▾ evidence  +0ns · 60ns
         observed  +0ns
         failed  +0ns
         missing start  +20ns
+        clock regression  +6

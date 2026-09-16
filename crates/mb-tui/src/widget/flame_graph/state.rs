@@ -53,6 +53,16 @@ pub enum FocusNavigation {
     PreserveParent,
 }
 
+/// Whether the synthetic root is rendered as a navigable row.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RootVisibility {
+    /// Render and navigate the root row.
+    #[default]
+    Visible,
+    /// Keep the root structural-only and render its children at depth zero.
+    Hidden,
+}
+
 /// Vertical cursor movement policy.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum VerticalNavigation {
@@ -103,6 +113,7 @@ pub struct FlameGraph {
     viewport_height: u16,
     cursor_navigation: CursorNavigation,
     focus_navigation: FocusNavigation,
+    root_visibility: RootVisibility,
     vertical_navigation: VerticalNavigation,
     transition_mode: TransitionMode,
     marks: HashMap<char, SpanId>,
@@ -128,6 +139,7 @@ impl FlameGraph {
             viewport_height: 0,
             cursor_navigation: CursorNavigation::default(),
             focus_navigation: FocusNavigation::default(),
+            root_visibility: RootVisibility::default(),
             vertical_navigation: VerticalNavigation::default(),
             transition_mode: TransitionMode::default(),
             marks: HashMap::new(),
@@ -143,6 +155,11 @@ impl FlameGraph {
     /// Configure whether exiting focus preserves the focused node's parent.
     pub fn set_focus_navigation(&mut self, navigation: FocusNavigation) {
         self.focus_navigation = navigation;
+    }
+
+    /// Configure whether the synthetic root is visible in the row list.
+    pub fn set_root_visibility(&mut self, visibility: RootVisibility) {
+        self.root_visibility = visibility;
     }
 
     /// Configure whether vertical movement uses visible rows or siblings.
@@ -358,23 +375,37 @@ impl FlameGraph {
 
     /// Flatten the tree into visible rows using the given render width.
     pub(crate) fn visible_rows_for_width(&self, width: u16) -> Vec<FlameRow> {
+        let root_visible = self.root_visibility == RootVisibility::Visible;
         if self.cursor_navigation == CursorNavigation::FollowSelection {
-            super::layout::flatten_visible_rows(
+            if root_visible {
+                return super::layout::flatten_visible_rows(
+                    &self.root,
+                    &self.path,
+                    &self.animations,
+                    self.selected_for_legend,
+                    self.focus,
+                    width,
+                );
+            }
+            super::layout::flatten_visible_rows_with_options(
                 &self.root,
                 &self.path,
                 &self.animations,
                 self.selected_for_legend,
                 self.focus,
+                true,
+                false,
                 width,
             )
         } else {
-            super::layout::flatten_visible_rows_with_ordering(
+            super::layout::flatten_visible_rows_with_options(
                 &self.root,
                 &self.path,
                 &self.animations,
                 self.selected_for_legend,
                 self.focus,
                 false,
+                root_visible,
                 width,
             )
         }
@@ -586,15 +617,22 @@ impl FlameGraph {
             .get(focus_path.len().saturating_sub(2))
             .copied()
             .unwrap_or(focus_id);
+        let selection_id = if self.root_visibility == RootVisibility::Hidden
+            && parent_id == self.root.id
+        {
+            focus_id
+        } else {
+            parent_id
+        };
         self.push_undo();
         self.focus = None;
         self.animations.remove(&focus_id);
         self.transition_animations(&focus_path);
         self.path = focus_path;
         if self.selected_for_legend.is_some() {
-            self.selected_for_legend = Some(parent_id);
+            self.selected_for_legend = Some(selection_id);
         }
-        self.move_cursor_to_span(parent_id);
+        self.move_cursor_to_span(selection_id);
         KeyResult::Consumed
     }
 }
@@ -804,6 +842,9 @@ impl FlameGraph {
             return KeyResult::Consumed;
         };
         let parent_id = selected_path[parent_index];
+        if self.root_visibility == RootVisibility::Hidden && parent_id == self.root.id {
+            return KeyResult::Consumed;
+        }
         let new_path = selected_path[..=parent_index].to_vec();
         self.push_undo();
         self.transition_animations(&new_path);

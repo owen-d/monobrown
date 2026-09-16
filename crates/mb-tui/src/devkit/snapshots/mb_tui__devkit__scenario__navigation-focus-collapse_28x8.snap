@@ -4,9 +4,9 @@ expression: text
 ---
 Trace · 690ms
 Operation
-▾ trace  +0ns · 690ms
   ▾ request 01a0a709  +0ns ·
     ▾ query  +0ns · 690ms
         admitted  +0ns
         planning  +1ms · 219
         completed  +690ms
+    ▸ stage 0  +40ms · 260ms

@@ -4,7 +4,6 @@ expression: text
 ---
 Trace · partial capture · 00:00:00 → 00:00:00 · 60ns
 Operation                  Observed UTC             Offset     Duration   0ns        30ns       60ns
-▾ trace                    00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
   ▾ partial capture        00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
     ▾ evidence             00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
         observed           00:00:00                 +0ns       —          ◆

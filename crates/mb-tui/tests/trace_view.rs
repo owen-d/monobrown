@@ -122,13 +122,13 @@ fn span_expands_to_endpoint_children() {
     ];
     let mut view = TraceView::new(data(vec![span])).unwrap();
     assert!(view.select_item(ItemId(10)));
-    assert_eq!(view.visible_row_count(), 5);
+    assert_eq!(view.visible_row_count(), 4);
     assert_eq!(
         view.handle_key(&KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE)),
         KeyResult::Consumed
     );
     assert_eq!(view.selected_item().unwrap().id, ItemId(11));
-    assert_eq!(view.visible_row_count(), 7);
+    assert_eq!(view.visible_row_count(), 6);
 
     // Rendering the selected child exercises recursive item lookup; before
     // the hierarchy fix this path panicked because only top-level items were
@@ -140,7 +140,7 @@ fn span_expands_to_endpoint_children() {
         view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE))
             == KeyResult::Consumed
     );
-    assert_eq!(view.visible_row_count(), 5);
+    assert_eq!(view.visible_row_count(), 4);
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn selected_event_reveals_clean_hierarchy_and_labeled_bars() {
     assert!(view.select_item(ItemId(2)));
     finish(&mut view);
     let rendered = text(&frame(&mut view, 80, 12));
-    assert!(rendered.contains("▾ trace"));
+    assert!(!rendered.lines().any(|line| line.contains("▾ trace")));
     assert!(rendered.contains("▾ query 2e01ddde"));
     assert!(rendered.contains("▾ workspace"));
     assert!(rendered.contains("query adm"));
@@ -232,6 +232,7 @@ fn root_track_is_not_rendered_twice_as_group_and_track() {
     assert_eq!(
         rendered
             .lines()
+            .skip(2)
             .filter(|line| line.contains("workspace"))
             .count(),
         1,
@@ -295,6 +296,24 @@ fn trace_view_navigation_uses_immediate_disclosure() {
         KeyResult::Consumed
     );
     assert_eq!(view.selected_item().unwrap().id, ItemId(2));
+}
+
+#[test]
+fn hidden_trace_root_is_not_navigable() {
+    let mut view = fixture();
+    assert!(view.select_item(ItemId(1)));
+    for _ in 0..2 {
+        assert_eq!(
+            view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+            KeyResult::Consumed
+        );
+    }
+    assert_eq!(view.selected_group(), Some(GroupId(10)));
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    assert_eq!(view.selected_group(), Some(GroupId(10)));
 }
 
 #[test]

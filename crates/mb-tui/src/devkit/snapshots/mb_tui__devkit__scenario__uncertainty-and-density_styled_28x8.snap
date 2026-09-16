@@ -4,9 +4,9 @@ expression: text
 ---
 <fg:white,bold>Trace · 60ns</>
 <fg:#a0a0a0>Operation</>
-<fg:#a0a0a0>▾ trace  +0ns · 60ns</>
 <fg:#a0a0a0>  ▾ partial capture  +0ns ·</>
 <fg:#a0a0a0>    ▾ evidence  +0ns · 60ns</>
 <fg:white,bold>        observed  +0ns</>
 <fg:red>        failed  +0ns</>
 <fg:yellow>        missing start  +20ns</>
+<fg:red>        clock regression  +6</>
