@@ -3,6 +3,37 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+/// Identity of one caller-defined visual category within a dataset.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CategoryId(pub u16);
+
+/// Familiar semantic role resolved through the active terminal theme.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TraceVisualRole {
+    /// Ordinary activity without an outcome or urgency claim.
+    #[default]
+    Neutral,
+    /// Work that is queued, scheduled, or currently in progress.
+    Scheduled,
+    /// A successful outcome.
+    Success,
+    /// A partial, cancelled, or otherwise cautionary outcome.
+    Warning,
+    /// A failed or invalid outcome.
+    Failure,
+}
+
+/// Caller-owned category label paired with a conventional visual role.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraceCategory {
+    /// Dataset-wide stable category identity.
+    pub id: CategoryId,
+    /// Short legend label.
+    pub label: String,
+    /// Semantic palette role; labels and glyphs retain meaning without color.
+    pub role: TraceVisualRole,
+}
+
 /// Identity of a flat display group within one dataset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupId(pub u32);
@@ -70,28 +101,6 @@ impl TraceTiming {
             Self::Untimed => [None, None],
         }
     }
-
-    /// Identify only positive intervals eligible for duration bars and packing.
-    pub(crate) fn interval(self) -> Option<(i64, i64)> {
-        match self {
-            Self::Interval { start, end } if start < end => Some((start, end)),
-            _ => None,
-        }
-    }
-
-    /// Describe the supplied observations, preserving endpoint direction.
-    pub(crate) fn description(self, unit: TraceTimeUnit) -> String {
-        match self {
-            Self::Instant(at) => format!("instant {at} {unit}"),
-            Self::Interval { start, end } => {
-                let note = if start > end { " (regressed)" } else { "" };
-                format!("{start}..{end} {unit}{note}")
-            }
-            Self::MissingStart { end } => format!("missing start; end {end} {unit}"),
-            Self::MissingEnd { start } => format!("start {start} {unit}; missing end"),
-            Self::Untimed => "untimed".into(),
-        }
-    }
 }
 
 /// One selectable display observation, with caller-formatted detail fields.
@@ -99,6 +108,8 @@ impl TraceTiming {
 pub struct TraceItem {
     /// Dataset-wide stable item identity.
     pub id: ItemId,
+    /// Category used consistently by the time mark, legend, and details.
+    pub category: CategoryId,
     /// Short row label.
     pub label: String,
     /// Explicit time observations without inferred endpoints.
@@ -139,6 +150,8 @@ pub struct TraceGroup {
 pub struct TraceData {
     /// Unit shared by every item coordinate.
     pub time_unit: TraceTimeUnit,
+    /// Visual vocabulary in legend order.
+    pub categories: Vec<TraceCategory>,
     /// Flat display groups in caller-selected order.
     pub groups: Vec<TraceGroup>,
     /// Tracks in caller-selected order within each group.
@@ -156,6 +169,10 @@ pub enum TraceError {
     DuplicateTrack(TrackId),
     /// Two items have the same identity, even across tracks.
     DuplicateItem(ItemId),
+    /// Two categories have the same identity.
+    DuplicateCategory(CategoryId),
+    /// An item references a category absent from the dataset.
+    UnknownCategory(CategoryId),
     /// A track references a group absent from the dataset.
     UnknownGroup(GroupId),
     /// A viewport must have a strictly increasing pair of coordinates.
@@ -170,6 +187,8 @@ impl fmt::Display for TraceError {
             Self::DuplicateGroup(id) => write!(f, "duplicate trace group {}", id.0),
             Self::DuplicateTrack(id) => write!(f, "duplicate trace track {}", id.0),
             Self::DuplicateItem(id) => write!(f, "duplicate trace item {}", id.0),
+            Self::DuplicateCategory(id) => write!(f, "duplicate trace category {}", id.0),
+            Self::UnknownCategory(id) => write!(f, "unknown trace category {}", id.0),
             Self::UnknownGroup(id) => write!(f, "unknown trace group {}", id.0),
             Self::InvalidTimeWindow => f.write_str("trace window requires start < end"),
         }
@@ -182,6 +201,12 @@ impl TraceData {
     /// Check size before allocating identity indexes or derived layout.
     pub(crate) fn validate(&self) -> Result<(), TraceError> {
         self.validate_size()?;
+        let mut categories = BTreeSet::new();
+        for category in &self.categories {
+            if !categories.insert(category.id) {
+                return Err(TraceError::DuplicateCategory(category.id));
+            }
+        }
         let mut groups = BTreeSet::new();
         for group in &self.groups {
             if !groups.insert(group.id) {
@@ -200,6 +225,9 @@ impl TraceData {
                 return Err(TraceError::UnknownGroup(group));
             }
             for item in &track.items {
+                if !categories.contains(&item.category) {
+                    return Err(TraceError::UnknownCategory(item.category));
+                }
                 if !items.insert(item.id) {
                     return Err(TraceError::DuplicateItem(item.id));
                 }
@@ -211,9 +239,13 @@ impl TraceData {
     /// Bound all nested collections and text before expensive processing.
     fn validate_size(&self) -> Result<(), TraceError> {
         check_limit(self.groups.len(), 4096, "groups (4096)")?;
+        check_limit(self.categories.len(), 256, "categories (256)")?;
         check_limit(self.tracks.len(), 4096, "tracks (4096)")?;
         let mut items = 0;
         let mut text_bytes = 0;
+        for category in &self.categories {
+            check_text(&category.label, &mut text_bytes)?;
+        }
         for group in &self.groups {
             check_text(&group.label, &mut text_bytes)?;
         }

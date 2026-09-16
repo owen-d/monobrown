@@ -222,6 +222,19 @@ impl<S> ScenarioCatalog<S> {
         );
     }
 
+    /// Snapshot every scenario's styled cells after replaying its inputs.
+    pub fn assert_all_styled_snapshots_after_inputs(&self, width: u16, height: u16)
+    where
+        S: Clone,
+    {
+        self.assert_all_snapshots_with(
+            width,
+            height,
+            RenderOutput::Styled,
+            ScenarioPhase::AfterInputs,
+        );
+    }
+
     fn assert_all_snapshots_with(
         &self,
         width: u16,

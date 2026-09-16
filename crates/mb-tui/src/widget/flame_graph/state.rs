@@ -138,6 +138,27 @@ impl FlameGraph {
         self.cursor
     }
 
+    /// Identity of the span under the cursor, including when its legend is open.
+    pub fn selected_span(&self) -> Option<SpanId> {
+        span_id_at(&self.visible_rows(), self.cursor)
+    }
+
+    /// Select a span by identity and reveal its ancestor path.
+    ///
+    /// Returns `false` without changing state when the span is absent.
+    pub fn select_span(&mut self, span_id: SpanId) -> bool {
+        let path = ancestor_path(&self.root, span_id);
+        if path.is_empty() {
+            return false;
+        }
+        self.apply_path(path);
+        if self.selected_for_legend.is_some() {
+            self.selected_for_legend = Some(span_id);
+            self.move_cursor_to_span(span_id);
+        }
+        true
+    }
+
     /// Whether the given span is currently expanded (children visible).
     ///
     /// A node is expanded iff it is on the path and is not the leaf.
@@ -254,17 +275,23 @@ impl FlameGraph {
         // Clone the old path to avoid borrowing `self` immutably during
         // mutable `start_collapse` / `start_expand` calls.
         let old_path = self.path.clone();
-        let old_leaf = old_path.last().copied();
-        for &old_id in &old_path {
-            let was_expanded = Some(old_id) != old_leaf;
-            let still_expanded = new_path.contains(&old_id) && new_path.last() != Some(&old_id);
+        for (index, &old_id) in old_path.iter().enumerate() {
+            let was_expanded = index + 1 < old_path.len();
+            let still_expanded = new_path
+                .iter()
+                .position(|id| *id == old_id)
+                .is_some_and(|index| index + 1 < new_path.len());
             if was_expanded && !still_expanded {
                 self.start_collapse(old_id);
             }
         }
         for (i, &new_id) in new_path.iter().enumerate() {
             let is_leaf = i == new_path.len() - 1;
-            if !is_leaf && !old_path.contains(&new_id) {
+            let was_expanded = old_path
+                .iter()
+                .position(|id| *id == new_id)
+                .is_some_and(|index| index + 1 < old_path.len());
+            if !is_leaf && !was_expanded {
                 self.start_expand(new_id);
             }
         }

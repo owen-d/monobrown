@@ -1,0 +1,14 @@
+---
+source: crates/mb-tui/src/devkit/scenario.rs
+expression: text
+---
+<fg:#a0a0a0>▾ trace           </> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>  ▾ partial captu…</> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>    ▾ evidence    </> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:white,bold>        observed  </> <fg:#a0a0a0>╺━━━━━━━━━━━╸</>
+                   <fg:#a0a0a0>■activity:100%</>
+<fg:#a0a0a0>        failed    </> <fg:red>╺━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        missing s…</> <fg:yellow>╺━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        clock reg…</> <fg:red>╺━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        missing e…</> <fg:yellow>╺━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        partial c…</> <fg:yellow>╺━━━━━━━━━━━╸</>

@@ -1,0 +1,12 @@
+---
+source: crates/mb-tui/src/devkit/scenario.rs
+expression: text
+---
+▾ trace   ╺━━━━━━━━━━━━━━━━╸
+  ▾ requ… ╺━━━━━━━━━━━━━━━━╸
+    ▾ qu… ╺━━━━━━━━╸
+        … ━
+        … ╺━━━━━━━╸
+          ■scheduled:100%
+        … ━
+    ▸ st… ╺━━━━━╸

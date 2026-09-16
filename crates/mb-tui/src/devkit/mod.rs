@@ -27,6 +27,7 @@ pub mod stepper_demo;
 mod surface;
 pub mod tab_bar_demo;
 mod text;
+pub mod trace_view;
 pub mod unified;
 pub mod vim_editor;
 
