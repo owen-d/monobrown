@@ -2,13 +2,14 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-<fg:#a0a0a0>▾ trace           </> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>  ▾ partial captu…</> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>    ▾ evidence    </> <fg:#a0a0a0>╺━━━━━━━━━━━━━</><fg:yellow>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</><fg:red>━━━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        observed  </> <fg:#a0a0a0>╺━━━━━━━━━━━╸</>
-<fg:white,bold>        failed    </> <fg:red>╺━━━━━━━━━━━╸</>
-                   <fg:red>■</><fg:#a0a0a0>failure:100%</>
-<fg:#a0a0a0>        missing s…</> <fg:yellow>╺━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        clock reg…</> <fg:red>╺━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        missing e…</> <fg:yellow>╺━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        partial c…</> <fg:yellow>╺━━━━━━━━━━━╸</>
+<fg:white,bold>Trace · partial capture · 1970-01-01 00:00:00.00000002Z → 1970-01-01 00:00:00.00000008Z · 60ns</>
+<fg:#a0a0a0>Operation</>                  <fg:#a0a0a0>Observed UTC</>             <fg:#a0a0a0>Offset</>     <fg:#a0a0a0>Duration</>   <fg:#a0a0a0>0ns</>        <fg:#a0a0a0>30ns</>       <fg:#a0a0a0>60ns</>
+<fg:#a0a0a0>▾ trace</>                    <fg:#a0a0a0>00:00:00.000000020Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>60ns</>       <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>  ▾ partial capture</>        <fg:#a0a0a0>00:00:00.000000020Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>60ns</>       <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>    ▾ evidence</>             <fg:#a0a0a0>00:00:00.000000020Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>60ns</>       <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        observed</>           <fg:#a0a0a0>00:00:00.000000020Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:#a0a0a0>◆</>
+<fg:white,bold>        failed</>             <fg:#a0a0a0>00:00:00.000000020Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:red>◆</>
+<fg:yellow>        missing start</>      <fg:#a0a0a0>00:00:00.000000040Z</>      <fg:#a0a0a0>+20ns</>      <fg:#a0a0a0>—</>                  <fg:yellow>◁</>
+<fg:red>        clock regression</>   <fg:#a0a0a0>00:00:00.000000080Z</>      <fg:#a0a0a0>+60ns</>      <fg:#a0a0a0>—</>                      <fg:yellow>◁</>            <fg:yellow>▷</>
+<fg:yellow>        missing end</>        <fg:#a0a0a0>00:00:00.000000060Z</>      <fg:#a0a0a0>+40ns</>      <fg:#a0a0a0>—</>                          <fg:yellow>▷</>
+<fg:yellow>        partial coverage</>   <fg:#a0a0a0>—</>                        <fg:#a0a0a0>—</>          <fg:#a0a0a0>—</>

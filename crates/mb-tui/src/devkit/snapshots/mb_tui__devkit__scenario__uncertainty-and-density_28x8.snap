@@ -2,11 +2,11 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-▾ trace   ╺━━━━━━━━━━━━━━━━╸
-  ▾ part… ╺━━━━━━━━━━━━━━━━╸
-    ▾ ev… ╺━━━━━━━━━━━━━━━━╸
-        … ╺━╸
-          ■activity:100%
-        … ╺━╸
-        … ╺━╸
-        … ╺━╸
+Trace · 60ns
+Operation
+▾ trace  +0ns · 60ns
+  ▾ partial capture  +0ns ·
+    ▾ evidence  +0ns · 60ns
+        observed  +0ns
+        failed  +0ns
+        missing start  +20ns

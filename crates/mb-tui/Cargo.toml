@@ -11,10 +11,12 @@ default = ["devkit"]
 devkit = ["dep:insta", "dep:similar"]
 
 [dependencies]
+chrono.workspace = true
 crossterm = { workspace = true, features = ["event-stream"] }
 insta = { workspace = true, optional = true }
 pulldown-cmark.workspace = true
 ratatui = { workspace = true, features = ["unstable-rendered-line-info"] }
+serde_json.workspace = true
 similar = { workspace = true, optional = true }
 syntect = { workspace = true }
 two-face = { workspace = true }

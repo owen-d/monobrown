@@ -2,11 +2,11 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-<fg:#a0a0a0>▾ trace  </> <fg:#a0a0a0>╺━━</><fg:yellow>━━━━━━━━━</><fg:red>━━━━━╸</>
-<fg:#a0a0a0>  ▾ part…</> <fg:#a0a0a0>╺━━</><fg:yellow>━━━━━━━━━</><fg:red>━━━━━╸</>
-<fg:#a0a0a0>    ▾ ev…</> <fg:#a0a0a0>╺━━</><fg:yellow>━━━━━━━━━</><fg:red>━━━━━╸</>
-<fg:white,bold>        …</> <fg:#a0a0a0>╺━╸</>
-          <fg:#a0a0a0>■activity:100%</>
-<fg:#a0a0a0>        …</> <fg:red>╺━╸</>
-<fg:#a0a0a0>        …</> <fg:yellow>╺━╸</>
-<fg:#a0a0a0>        …</> <fg:red>╺━╸</>
+<fg:white,bold>Trace · 60ns</>
+<fg:#a0a0a0>Operation</>
+<fg:#a0a0a0>▾ trace  +0ns · 60ns</>
+<fg:#a0a0a0>  ▾ partial capture  +0ns ·</>
+<fg:#a0a0a0>    ▾ evidence  +0ns · 60ns</>
+<fg:white,bold>        observed  +0ns</>
+<fg:red>        failed  +0ns</>
+<fg:yellow>        missing start  +20ns</>

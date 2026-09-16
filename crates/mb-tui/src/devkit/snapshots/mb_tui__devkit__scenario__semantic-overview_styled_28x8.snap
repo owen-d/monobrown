@@ -2,11 +2,11 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-<fg:#a0a0a0>▾ trace  </> <fg:cyan>╺━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>  ▾ requ…</> <fg:cyan>╺━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>    ▾ qu…</> <fg:cyan>╺━━━━━━━━╸</>
-<fg:#a0a0a0>        …</> <fg:#a0a0a0>━</>
-<fg:white,bold>        …</> <fg:cyan>╺━━━━━━━╸</>
-          <fg:cyan>■</><fg:#a0a0a0>scheduled:100%</>
-<fg:#a0a0a0>        …</> <fg:green>━</>
-<fg:#a0a0a0>    ▸ st…</> <fg:cyan>╺━━━━━╸</>
+<fg:white,bold>Trace · 690ms</>
+<fg:#a0a0a0>Operation</>
+<fg:#a0a0a0>▾ trace  +0ns · 690ms</>
+<fg:#a0a0a0>  ▾ request 01a0a709  +0ns ·</>
+<fg:#a0a0a0>    ▾ query  +0ns · 690ms</>
+<fg:#a0a0a0>        admitted  +0ns</>
+<fg:white,bold>        planning  +1ms · 219</>
+<fg:green>        completed  +690ms</>

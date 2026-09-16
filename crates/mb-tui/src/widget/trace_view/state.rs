@@ -17,7 +17,7 @@ use crate::widget::flame_graph::{CostBreakdown, CostType, FlameGraph, SpanId, Sp
 const ROLE_COUNT: usize = 5;
 
 #[derive(Clone, Copy)]
-enum TraceSpan {
+pub(crate) enum TraceSpan {
     Root,
     Group(GroupId),
     Track(TrackId),
@@ -35,6 +35,7 @@ pub struct TraceView {
     group_spans: BTreeMap<GroupId, SpanId>,
     track_spans: BTreeMap<TrackId, SpanId>,
     window: TimeWindow,
+    details_expanded: bool,
 }
 
 impl TraceView {
@@ -56,22 +57,13 @@ impl TraceView {
             group_spans: projection.group_spans,
             track_spans: projection.track_spans,
             window,
+            details_expanded: false,
         })
     }
 
     /// Borrow the admitted renderer-independent trace facts.
     pub fn data(&self) -> &TraceData {
         &self.data
-    }
-
-    /// Borrow the shared flame-graph presentation state.
-    pub(crate) fn graph(&self) -> &FlameGraph {
-        &self.graph
-    }
-
-    /// Mutably borrow the shared presentation state for viewport-aware render.
-    pub(crate) fn graph_mut(&mut self) -> &mut FlameGraph {
-        &mut self.graph
     }
 
     /// Advance the same expand/collapse transitions used by Descendit.
@@ -86,6 +78,14 @@ impl TraceView {
 
     /// Dispatch navigation through the shared flame-graph interaction model.
     pub fn handle_key(&mut self, key: &KeyEvent) -> KeyResult {
+        if key.code == crossterm::event::KeyCode::Enter
+            && !key.modifiers.intersects(
+                crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::ALT,
+            )
+        {
+            self.details_expanded = !self.details_expanded;
+            return KeyResult::Consumed;
+        }
         self.graph.handle_key(key)
     }
 
@@ -203,6 +203,54 @@ impl TraceView {
     /// Current vertical scroll offset.
     pub fn scroll_offset(&self) -> usize {
         self.graph.scroll_offset()
+    }
+
+    /// Whether the selected row's details are expanded.
+    pub fn details_expanded(&self) -> bool {
+        self.details_expanded
+    }
+
+    /// Toggle the selected row's details from an application shell.
+    pub fn set_details_expanded(&mut self, expanded: bool) {
+        self.details_expanded = expanded;
+    }
+
+    /// Visible hierarchy rows for the waterfall renderer.
+    pub(crate) fn visible_rows(&self) -> Vec<crate::widget::flame_graph::FlameRow> {
+        self.graph.visible_rows()
+    }
+
+    /// Resolve a renderer span identity back to trace meaning.
+    pub(crate) fn trace_span(&self, span: SpanId) -> Option<TraceSpan> {
+        self.spans.get(&span).copied()
+    }
+
+    /// Return the current navigation selection's internal span identity.
+    pub(crate) fn selected_span_id(&self) -> Option<SpanId> {
+        self.graph.selected_span()
+    }
+
+    /// Update the shared navigation viewport for keyboard scrolling.
+    pub(crate) fn set_viewport_height(&mut self, height: u16) {
+        self.graph.set_viewport_height(height);
+    }
+
+    /// Whether a structural span currently exposes its children.
+    pub(crate) fn is_span_expanded(&self, span: SpanId) -> bool {
+        self.graph.is_expanded(span)
+    }
+
+    /// Resolve a trace row to the shared navigation span.
+    pub(crate) fn span_id_for(&self, span: TraceSpan) -> Option<SpanId> {
+        match span {
+            TraceSpan::Root => self
+                .spans
+                .iter()
+                .find_map(|(id, value)| matches!(value, TraceSpan::Root).then_some(*id)),
+            TraceSpan::Group(id) => self.group_spans.get(&id).copied(),
+            TraceSpan::Track(id) => self.track_spans.get(&id).copied(),
+            TraceSpan::Item(id) => self.item_spans.get(&id).copied(),
+        }
     }
 
     fn selected_span(&self) -> Option<TraceSpan> {

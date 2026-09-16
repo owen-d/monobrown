@@ -19,7 +19,10 @@ fn item(id: u64, label: &str, timing: TraceTiming) -> TraceItem {
         category: CategoryId(0),
         label: label.into(),
         timing,
-        details: vec![],
+        details: vec![
+            ("source".into(), "fixture".into()),
+            ("payload".into(), r#"{"ok":true,"count":2}"#.into()),
+        ],
     }
 }
 
@@ -84,6 +87,24 @@ fn finish(view: &mut TraceView) {
     for _ in 0..96 {
         view.tick(Duration::from_millis(16));
     }
+}
+
+#[test]
+fn selected_row_expands_observed_time_and_details() {
+    let mut view = fixture();
+    assert!(view.select_item(ItemId(2)));
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    finish(&mut view);
+    let rendered = text(&frame(&mut view, 140, 20));
+    assert!(rendered.contains("Observed UTC"));
+    assert!(rendered.contains("1970-01-01"));
+    assert!(rendered.contains("observed UTC:"));
+    assert!(rendered.contains("source: fixture"));
+    assert!(rendered.contains("payload:"));
+    assert!(rendered.contains("true"));
 }
 
 #[test]
