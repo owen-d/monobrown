@@ -95,6 +95,7 @@ struct FlattenCtx<'a> {
     animations: &'a HashMap<SpanId, ExpandAnimation>,
     legend_for: Option<SpanId>,
     focus: Option<SpanId>,
+    path_first_ordering: bool,
     rows: Vec<FlameRow>,
 }
 
@@ -117,12 +118,34 @@ pub fn flatten_visible_rows(
     focus: Option<SpanId>,
     total_width: u16,
 ) -> Vec<FlameRow> {
+    flatten_visible_rows_with_ordering(
+        root,
+        path,
+        animations,
+        legend_for,
+        focus,
+        true,
+        total_width,
+    )
+}
+
+/// Flatten the span tree with an explicit sibling-ordering policy.
+pub(crate) fn flatten_visible_rows_with_ordering(
+    root: &SpanNode,
+    path: &[SpanId],
+    animations: &HashMap<SpanId, ExpandAnimation>,
+    legend_for: Option<SpanId>,
+    focus: Option<SpanId>,
+    path_first_ordering: bool,
+    total_width: u16,
+) -> Vec<FlameRow> {
     let mut ctx = FlattenCtx {
         root,
         path,
         animations,
         legend_for,
         focus,
+        path_first_ordering,
         rows: Vec::new(),
     };
     let root_bar_width = bar_zone_width(total_width);
@@ -181,18 +204,21 @@ fn flatten_node(node: &SpanNode, depth: u16, bar_width: u16, ctx: &mut FlattenCt
     let anim_scale = ctx.animations.get(&node.id).map_or(1.0, |a| a.value);
     let parent_total = node.costs.total();
 
-    // Path-first ordering: the path child renders first among its siblings,
-    // keeping the visual path going straight down. Only applies to non-leaf
-    // path nodes (expanded ancestors), so j/k sibling browsing stays stable.
-    let path_child_idx = node
-        .children
-        .iter()
-        .position(|c| ctx.path.contains(&c.id) && ctx.path.last() != Some(&c.id));
-
-    let iter_order: Vec<usize> = if let Some(idx) = path_child_idx {
-        std::iter::once(idx)
-            .chain((0..node.children.len()).filter(|&i| i != idx))
-            .collect()
+    // Descendit's follow-selection mode keeps the active path visually
+    // straight by promoting it ahead of siblings. TraceView opts into stable
+    // source order so disclosure never rearranges the surrounding list.
+    let iter_order: Vec<usize> = if ctx.path_first_ordering {
+        let path_child_idx = node
+            .children
+            .iter()
+            .position(|c| ctx.path.contains(&c.id) && ctx.path.last() != Some(&c.id));
+        if let Some(idx) = path_child_idx {
+            std::iter::once(idx)
+                .chain((0..node.children.len()).filter(|&i| i != idx))
+                .collect()
+        } else {
+            (0..node.children.len()).collect()
+        }
     } else {
         (0..node.children.len()).collect()
     };

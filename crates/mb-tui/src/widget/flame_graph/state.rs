@@ -4,7 +4,7 @@ use std::time::Duration;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::data::{SpanId, SpanNode};
-use super::layout::{FlameRow, RowKind, flatten_visible_rows};
+use super::layout::{FlameRow, RowKind};
 use super::render::BarStyle;
 use crate::input::KeyResult;
 
@@ -41,6 +41,16 @@ pub enum CursorNavigation {
     PreserveExpansion,
     #[default]
     FollowSelection,
+}
+
+/// Behavior when `h` exits focus from the focused node.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FocusNavigation {
+    /// Restore the historical behavior and collapse the focused node's parent.
+    #[default]
+    CollapseParent,
+    /// Return to the full tree while retaining the parent's disclosure state.
+    PreserveParent,
 }
 
 /// Vertical cursor movement policy.
@@ -92,6 +102,7 @@ pub struct FlameGraph {
     /// Last known viewport height (rows), cached during render for scroll math.
     viewport_height: u16,
     cursor_navigation: CursorNavigation,
+    focus_navigation: FocusNavigation,
     vertical_navigation: VerticalNavigation,
     transition_mode: TransitionMode,
     marks: HashMap<char, SpanId>,
@@ -116,6 +127,7 @@ impl FlameGraph {
             scroll_offset: 0,
             viewport_height: 0,
             cursor_navigation: CursorNavigation::default(),
+            focus_navigation: FocusNavigation::default(),
             vertical_navigation: VerticalNavigation::default(),
             transition_mode: TransitionMode::default(),
             marks: HashMap::new(),
@@ -126,6 +138,11 @@ impl FlameGraph {
     /// Configure whether j/k navigation follows the selected node's path.
     pub fn set_cursor_navigation(&mut self, navigation: CursorNavigation) {
         self.cursor_navigation = navigation;
+    }
+
+    /// Configure whether exiting focus preserves the focused node's parent.
+    pub fn set_focus_navigation(&mut self, navigation: FocusNavigation) {
+        self.focus_navigation = navigation;
     }
 
     /// Configure whether vertical movement uses visible rows or siblings.
@@ -341,14 +358,26 @@ impl FlameGraph {
 
     /// Flatten the tree into visible rows using the given render width.
     pub(crate) fn visible_rows_for_width(&self, width: u16) -> Vec<FlameRow> {
-        flatten_visible_rows(
-            &self.root,
-            &self.path,
-            &self.animations,
-            self.selected_for_legend,
-            self.focus,
-            width,
-        )
+        if self.cursor_navigation == CursorNavigation::FollowSelection {
+            super::layout::flatten_visible_rows(
+                &self.root,
+                &self.path,
+                &self.animations,
+                self.selected_for_legend,
+                self.focus,
+                width,
+            )
+        } else {
+            super::layout::flatten_visible_rows_with_ordering(
+                &self.root,
+                &self.path,
+                &self.animations,
+                self.selected_for_legend,
+                self.focus,
+                false,
+                width,
+            )
+        }
     }
 }
 
@@ -547,6 +576,27 @@ impl FlameGraph {
         self.move_cursor_to_span(parent_id);
         KeyResult::Consumed
     }
+
+    fn unfocus_to_parent_preserving(&mut self) -> KeyResult {
+        let Some(focus_id) = self.focus else {
+            return KeyResult::Consumed;
+        };
+        let focus_path = ancestor_path(&self.root, focus_id);
+        let parent_id = focus_path
+            .get(focus_path.len().saturating_sub(2))
+            .copied()
+            .unwrap_or(focus_id);
+        self.push_undo();
+        self.focus = None;
+        self.animations.remove(&focus_id);
+        self.transition_animations(&focus_path);
+        self.path = focus_path;
+        if self.selected_for_legend.is_some() {
+            self.selected_for_legend = Some(parent_id);
+        }
+        self.move_cursor_to_span(parent_id);
+        KeyResult::Consumed
+    }
 }
 
 // --- Navigation helpers (private) ---
@@ -738,7 +788,10 @@ impl FlameGraph {
             if let Some(cursor_id) = span_id_at(&rows, self.cursor)
                 && cursor_id == focus_id
             {
-                return self.unfocus_to_parent();
+                return match self.focus_navigation {
+                    FocusNavigation::CollapseParent => self.unfocus_to_parent(),
+                    FocusNavigation::PreserveParent => self.unfocus_to_parent_preserving(),
+                };
             }
         }
 

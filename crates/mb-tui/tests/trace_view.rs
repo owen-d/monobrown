@@ -144,6 +144,67 @@ fn span_expands_to_endpoint_children() {
 }
 
 #[test]
+fn trace_disclosure_preserves_sibling_order_and_focus_parent() {
+    let mut reserve = item(
+        3,
+        "tool: reserve_wakeup",
+        TraceTiming::Interval { start: 5, end: 20 },
+    );
+    reserve.children = vec![
+        item(4, "reserve_wakeup call", TraceTiming::Instant(5)),
+        item(5, "tool output", TraceTiming::Instant(20)),
+    ];
+    let mut view = TraceView::new(data(vec![
+        item(1, "tool: unknown", TraceTiming::Instant(0)),
+        item(2, "reasoning", TraceTiming::Instant(2)),
+        reserve,
+    ]))
+    .unwrap();
+    assert!(view.select_item(ItemId(3)));
+
+    let rendered = text(&frame(&mut view, 140, 20));
+    let unknown = rendered.find("tool: unknown").unwrap();
+    let reasoning = rendered.find("reasoning").unwrap();
+    let reserve = rendered.find("tool: reserve_wakeup").unwrap();
+    assert!(unknown < reasoning && reasoning < reserve);
+
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    let rendered = text(&frame(&mut view, 140, 20));
+    let unknown = rendered.find("tool: unknown").unwrap();
+    let reasoning = rendered.find("reasoning").unwrap();
+    let reserve = rendered.find("tool: reserve_wakeup").unwrap();
+    let call = rendered.find("reserve_wakeup call").unwrap();
+    assert!(unknown < reasoning && reasoning < reserve && reserve < call);
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+
+    let rendered = text(&frame(&mut view, 140, 20));
+    let unknown = rendered.find("tool: unknown").unwrap();
+    let reasoning = rendered.find("reasoning").unwrap();
+    let reserve = rendered.find("tool: reserve_wakeup").unwrap();
+    assert!(unknown < reasoning && reasoning < reserve);
+    assert!(!rendered.contains("reserve_wakeup call"));
+}
+
+#[test]
 fn selected_event_reveals_clean_hierarchy_and_labeled_bars() {
     let mut view = fixture();
     assert!(view.select_item(ItemId(2)));

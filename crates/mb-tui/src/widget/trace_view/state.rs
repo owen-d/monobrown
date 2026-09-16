@@ -13,8 +13,8 @@ use super::layout::TimeWindow;
 use crate::input::KeyResult;
 use crate::theme;
 use crate::widget::flame_graph::{
-    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode, TransitionMode,
-    VerticalNavigation,
+    CostBreakdown, CostType, CursorNavigation, FlameGraph, FocusNavigation, SpanId, SpanNode,
+    TransitionMode, VerticalNavigation,
 };
 
 const ROLE_COUNT: usize = 5;
@@ -53,6 +53,7 @@ impl TraceView {
         let mut graph = FlameGraph::new(root, role_cost_types())
             .with_transition_mode(TransitionMode::Immediate);
         graph.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        graph.set_focus_navigation(FocusNavigation::PreserveParent);
         graph.set_vertical_navigation(VerticalNavigation::Siblings);
         Ok(Self {
             data,

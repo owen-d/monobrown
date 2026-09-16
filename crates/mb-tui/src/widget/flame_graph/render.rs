@@ -3,7 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 
 use super::data::{CostType, SpanNode};
-use super::layout::{FlameRow, RowKind, RowLayout, flatten_visible_rows};
+use super::layout::{FlameRow, RowKind, RowLayout};
 use super::state::{FlameGraph, find_node};
 use crate::render::{OverflowBehavior, clip_text, display_width, ellipsize_text, summarize_text};
 use crate::theme;
@@ -65,14 +65,7 @@ pub fn render(state: &FlameGraph, area: Rect, buf: &mut Buffer) {
     }
     let layout = RowLayout::for_width(area.width);
 
-    let rows = flatten_visible_rows(
-        &state.root,
-        &state.path,
-        &state.animations,
-        state.selected_for_legend,
-        state.focus,
-        area.width,
-    );
+    let rows = state.visible_rows_for_width(area.width);
 
     // Clamp scroll offset so we don't scroll past the last row.
     let scroll = state
