@@ -144,6 +144,27 @@ fn span_expands_to_endpoint_children() {
 }
 
 #[test]
+fn json_preview_expands_breadth_first_without_reordering() {
+    let mut endpoint = item(20, "inspect_result call", TraceTiming::Instant(10));
+    endpoint.details = vec![(
+        "input (json)".into(),
+        r#"{"result_ref":{"output_name":"zones","run_id":"run"},"row_end":40}"#.into(),
+    )];
+    endpoint.children = vec![
+        item(21, "input", TraceTiming::Untimed),
+        item(22, "result_ref", TraceTiming::Untimed),
+        item(23, "row_end", TraceTiming::Untimed),
+    ];
+    let mut view = TraceView::new(data(vec![endpoint])).unwrap();
+    view.auto_expand_json(4);
+    let rendered = text(&frame(&mut view, 120, 12));
+    let input = rendered.find("input").expect("input row");
+    let result = rendered.find("result_ref").expect("result row");
+    let row_end = rendered.find("row_end").expect("row end row");
+    assert!(input < result && result < row_end);
+}
+
+#[test]
 fn trace_disclosure_preserves_sibling_order_and_focus_parent() {
     let mut reserve = item(
         3,

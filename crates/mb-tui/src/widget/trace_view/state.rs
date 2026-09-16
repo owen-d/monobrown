@@ -1,6 +1,6 @@
 //! Trace projection over the shared hierarchy navigation engine.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::time::Duration;
 
 use crossterm::event::KeyEvent;
@@ -13,8 +13,8 @@ use super::layout::TimeWindow;
 use crate::input::KeyResult;
 use crate::theme;
 use crate::widget::flame_graph::{
-    CostBreakdown, CostType, CursorNavigation, FlameGraph, FocusNavigation, RootVisibility,
-    SpanId, SpanNode, TransitionMode, VerticalNavigation,
+    CostBreakdown, CostType, CursorNavigation, FlameGraph, FocusNavigation, RootVisibility, SpanId,
+    SpanNode, TransitionMode, VerticalNavigation,
 };
 
 const ROLE_COUNT: usize = 5;
@@ -71,6 +71,39 @@ impl TraceView {
     /// Borrow the admitted renderer-independent trace facts.
     pub fn data(&self) -> &TraceData {
         &self.data
+    }
+
+    /// Expand a bounded breadth-first preview of structured JSON children.
+    ///
+    /// The endpoint owning a JSON detail is included, followed by its
+    /// structural descendants in source order. This is an initial disclosure
+    /// hint; normal `h`/`l` navigation remains explicit afterwards.
+    pub fn auto_expand_json(&mut self, limit: usize) {
+        if limit == 0 {
+            return;
+        }
+        let mut queue = VecDeque::new();
+        for track in &self.data.tracks {
+            for item in &track.items {
+                enqueue_json_roots(item, &mut queue);
+            }
+        }
+        let mut selected = Vec::new();
+        let mut count = 0;
+        while let Some(item) = queue.pop_front() {
+            let Some(span) = self.item_spans.get(&item.id).copied() else {
+                continue;
+            };
+            selected.push(span);
+            count += 1;
+            if count >= limit {
+                break;
+            }
+            for child in &item.children {
+                queue.push_back(child);
+            }
+        }
+        self.graph.set_disclosed_spans(selected);
     }
 
     /// Advance shared transitions when a caller changes the graph policy.
@@ -268,6 +301,19 @@ impl TraceView {
         self.graph
             .selected_span()
             .and_then(|span| self.spans.get(&span).copied())
+    }
+}
+
+fn enqueue_json_roots<'a>(item: &'a TraceItem, queue: &mut VecDeque<&'a TraceItem>) {
+    if item
+        .details
+        .iter()
+        .any(|(name, _)| matches!(name.as_str(), "input (json)" | "output (json)"))
+    {
+        queue.push_back(item);
+    }
+    for child in &item.children {
+        enqueue_json_roots(child, queue);
     }
 }
 

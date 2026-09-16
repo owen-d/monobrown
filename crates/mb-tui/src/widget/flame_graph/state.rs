@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -99,6 +99,9 @@ pub struct FlameGraph {
     pub(crate) cursor: usize,
     pub(crate) selected_for_legend: Option<SpanId>,
     pub(crate) animations: HashMap<SpanId, ExpandAnimation>,
+    /// Structural disclosures requested by a domain view (for example a
+    /// bounded JSON preview). These are independent of cursor navigation.
+    pub(crate) disclosed: HashSet<SpanId>,
     /// When set, this span is the visual root (focus mode).
     pub(crate) focus: Option<SpanId>,
     /// Visual style for bar segments.
@@ -131,6 +134,7 @@ impl FlameGraph {
             cursor: 0,
             selected_for_legend: Some(root_id),
             animations: HashMap::new(),
+            disclosed: HashSet::new(),
             focus: None,
             bar_style: BarStyle::default(),
             undo_stack: Vec::new(),
@@ -172,6 +176,15 @@ impl FlameGraph {
         self.transition_mode = mode;
         if mode == TransitionMode::Immediate {
             self.animations.clear();
+        }
+    }
+
+    /// Keep selected structural nodes expanded independently of the cursor
+    /// path. This is intended for bounded, domain-specific initial previews.
+    pub fn set_disclosed_spans(&mut self, spans: impl IntoIterator<Item = SpanId>) {
+        self.disclosed.clear();
+        for span in spans {
+            self.disclosed.extend(ancestor_path(&self.root, span));
         }
     }
 
@@ -312,7 +325,8 @@ impl FlameGraph {
     ///
     /// A node is expanded iff it is on the path and is not the leaf.
     pub fn is_expanded(&self, span_id: SpanId) -> bool {
-        self.path.contains(&span_id) && self.path.last() != Some(&span_id)
+        self.disclosed.contains(&span_id)
+            || (self.path.contains(&span_id) && self.path.last() != Some(&span_id))
     }
 
     /// The root span node of this flame graph.
@@ -391,6 +405,7 @@ impl FlameGraph {
                 &self.root,
                 &self.path,
                 &self.animations,
+                &self.disclosed,
                 self.selected_for_legend,
                 self.focus,
                 true,
@@ -402,6 +417,7 @@ impl FlameGraph {
                 &self.root,
                 &self.path,
                 &self.animations,
+                &self.disclosed,
                 self.selected_for_legend,
                 self.focus,
                 false,
@@ -617,13 +633,12 @@ impl FlameGraph {
             .get(focus_path.len().saturating_sub(2))
             .copied()
             .unwrap_or(focus_id);
-        let selection_id = if self.root_visibility == RootVisibility::Hidden
-            && parent_id == self.root.id
-        {
-            focus_id
-        } else {
-            parent_id
-        };
+        let selection_id =
+            if self.root_visibility == RootVisibility::Hidden && parent_id == self.root.id {
+                focus_id
+            } else {
+                parent_id
+            };
         self.push_undo();
         self.focus = None;
         self.animations.remove(&focus_id);
@@ -847,6 +862,11 @@ impl FlameGraph {
         }
         let new_path = selected_path[..=parent_index].to_vec();
         self.push_undo();
+        self.disclosed.retain(|id| {
+            !ancestor_path(&self.root, *id)
+                .iter()
+                .any(|ancestor| *ancestor == parent_id)
+        });
         self.transition_animations(&new_path);
         self.path = new_path;
 

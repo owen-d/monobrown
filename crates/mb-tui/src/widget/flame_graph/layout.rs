@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::data::{SpanId, SpanNode};
 use super::state::ExpandAnimation;
@@ -93,6 +93,7 @@ struct FlattenCtx<'a> {
     root: &'a SpanNode,
     path: &'a [SpanId],
     animations: &'a HashMap<SpanId, ExpandAnimation>,
+    disclosed: &'a HashSet<SpanId>,
     legend_for: Option<SpanId>,
     focus: Option<SpanId>,
     path_first_ordering: bool,
@@ -118,15 +119,7 @@ pub fn flatten_visible_rows(
     focus: Option<SpanId>,
     total_width: u16,
 ) -> Vec<FlameRow> {
-    flatten_visible_rows_with_ordering(
-        root,
-        path,
-        animations,
-        legend_for,
-        focus,
-        true,
-        total_width,
-    )
+    flatten_visible_rows_with_ordering(root, path, animations, legend_for, focus, true, total_width)
 }
 
 /// Flatten the span tree with an explicit sibling-ordering policy.
@@ -143,6 +136,7 @@ pub(crate) fn flatten_visible_rows_with_ordering(
         root,
         path,
         animations,
+        &HashSet::new(),
         legend_for,
         focus,
         path_first_ordering,
@@ -156,6 +150,7 @@ pub(crate) fn flatten_visible_rows_with_options(
     root: &SpanNode,
     path: &[SpanId],
     animations: &HashMap<SpanId, ExpandAnimation>,
+    disclosed: &HashSet<SpanId>,
     legend_for: Option<SpanId>,
     focus: Option<SpanId>,
     path_first_ordering: bool,
@@ -166,6 +161,7 @@ pub(crate) fn flatten_visible_rows_with_options(
         root,
         path,
         animations,
+        disclosed,
         legend_for,
         focus,
         path_first_ordering,
@@ -220,7 +216,8 @@ fn flatten_node(node: &SpanNode, depth: u16, bar_width: u16, ctx: &mut FlattenCt
     let on_path_expanded = ctx.path.contains(&node.id) && ctx.path.last() != Some(&node.id);
     let is_focus_root = ctx.focus == Some(node.id);
     let animating = ctx.animations.contains_key(&node.id);
-    let show_children = on_path_expanded || is_focus_root || animating;
+    let show_children =
+        on_path_expanded || is_focus_root || animating || ctx.disclosed.contains(&node.id);
 
     if !show_children || node.children.is_empty() {
         return;
