@@ -25,9 +25,10 @@ pub struct ExpandAnimation {
 
 /// View state for a horizontal flame graph widget.
 ///
-/// State is represented as a single path from root to the cursor node.
-/// A node is "expanded" (its children visible) iff it is on the path and
-/// is not the last element (the leaf/cursor node).
+/// In follow-selection mode, state is represented as a single path from root
+/// to the cursor node. A node is "expanded" (its children visible) iff it is
+/// on the path and is not the last element. Persistent-disclosure views keep
+/// the same path as their expansion route while moving the cursor within it.
 const UNDO_LIMIT: usize = 32;
 
 /// Whether vertical cursor navigation follows the selected node's ancestry.
@@ -40,6 +41,22 @@ pub enum CursorNavigation {
     PreserveExpansion,
     #[default]
     FollowSelection,
+}
+
+/// Vertical cursor movement policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VerticalNavigation {
+    /// Move through the visible preorder rows (Descendit's behavior).
+    #[default]
+    VisibleRows,
+    /// Move only among the selected span's direct siblings.
+    Siblings,
+}
+
+#[derive(Clone, Copy)]
+enum MarkAction {
+    Set,
+    Jump,
 }
 
 #[derive(Clone)]
@@ -65,6 +82,9 @@ pub struct FlameGraph {
     /// Last known viewport height (rows), cached during render for scroll math.
     viewport_height: u16,
     cursor_navigation: CursorNavigation,
+    vertical_navigation: VerticalNavigation,
+    marks: HashMap<char, SpanId>,
+    pending_mark: Option<MarkAction>,
 }
 
 impl FlameGraph {
@@ -85,6 +105,9 @@ impl FlameGraph {
             scroll_offset: 0,
             viewport_height: 0,
             cursor_navigation: CursorNavigation::default(),
+            vertical_navigation: VerticalNavigation::default(),
+            marks: HashMap::new(),
+            pending_mark: None,
         }
     }
 
@@ -93,8 +116,34 @@ impl FlameGraph {
         self.cursor_navigation = navigation;
     }
 
+    /// Configure whether vertical movement uses visible rows or siblings.
+    pub fn set_vertical_navigation(&mut self, navigation: VerticalNavigation) {
+        self.vertical_navigation = navigation;
+    }
+
+    /// Whether a mark key is pending its one-character name.
+    pub fn mark_pending(&self) -> bool {
+        self.pending_mark.is_some()
+    }
+
     /// Dispatch a key press. Returns whether the key was consumed.
     pub fn handle_key(&mut self, key: &KeyEvent) -> KeyResult {
+        if let Some(action) = self.pending_mark.take() {
+            if key.code == KeyCode::Esc {
+                return KeyResult::Consumed;
+            }
+            if key.modifiers.is_empty()
+                && let KeyCode::Char(mark) = key.code
+                && mark.is_ascii_lowercase()
+            {
+                return match action {
+                    MarkAction::Set => self.set_mark(mark),
+                    MarkAction::Jump => self.jump_to_mark(mark),
+                };
+            }
+            return KeyResult::Consumed;
+        }
+
         if key.modifiers.contains(KeyModifiers::CONTROL)
             && !key.modifiers.contains(KeyModifiers::ALT)
         {
@@ -122,6 +171,14 @@ impl FlameGraph {
             KeyCode::Char('F') => self.unfocus(),
             KeyCode::Char('u') => self.undo(),
             KeyCode::Char('r') => self.redo(),
+            KeyCode::Char('m') => {
+                self.pending_mark = Some(MarkAction::Set);
+                KeyResult::Consumed
+            }
+            KeyCode::Char('`') => {
+                self.pending_mark = Some(MarkAction::Jump);
+                KeyResult::Consumed
+            }
             KeyCode::Enter => self.toggle_legend(&rows),
             _ => KeyResult::Ignored,
         }
@@ -460,78 +517,88 @@ impl FlameGraph {
 
 impl FlameGraph {
     fn move_cursor_up(&mut self, rows: &[FlameRow]) -> KeyResult {
-        self.push_undo();
-        // Find the target span id from the pre-move row list.
-        let mut target_id = None;
-        let mut candidate = self.cursor;
-        while candidate > 0 {
-            candidate -= 1;
-            if !is_legend_row(rows, candidate) {
-                target_id = span_id_at(rows, candidate);
-                break;
-            }
-        }
-        if let Some(new_id) = target_id {
-            // Sync legend and path first, then reposition cursor.
-            if self.selected_for_legend.is_some() {
-                self.selected_for_legend = Some(new_id);
-            }
-            if self.cursor_navigation == CursorNavigation::FollowSelection {
-                self.sync_path_to_cursor(new_id);
-            }
-            self.move_cursor_to_span(new_id);
-        }
-        KeyResult::Consumed
+        self.move_cursor_vertical(rows, -1)
     }
 
     fn move_cursor_down(&mut self, rows: &[FlameRow]) -> KeyResult {
-        self.push_undo();
-        let max = rows.len().saturating_sub(1);
-        // Find the target span id from the pre-move row list.
-        let mut target_id = None;
-        let mut candidate = self.cursor;
-        while candidate < max {
-            candidate += 1;
-            if !is_legend_row(rows, candidate) {
-                target_id = span_id_at(rows, candidate);
-                break;
-            }
-        }
-        if let Some(new_id) = target_id {
-            // Sync legend and path first, then reposition cursor.
-            if self.selected_for_legend.is_some() {
-                self.selected_for_legend = Some(new_id);
-            }
-            if self.cursor_navigation == CursorNavigation::FollowSelection {
-                self.sync_path_to_cursor(new_id);
-            }
-            self.move_cursor_to_span(new_id);
-        }
+        self.move_cursor_vertical(rows, 1)
+    }
+
+    fn move_cursor_vertical(&mut self, rows: &[FlameRow], direction: isize) -> KeyResult {
+        let candidates = self.vertical_candidates(rows);
+        let Some(current_id) = span_id_at(rows, self.cursor) else {
+            return KeyResult::Consumed;
+        };
+        let Some(current) = candidates.iter().position(|id| *id == current_id) else {
+            return KeyResult::Consumed;
+        };
+        let target = current.saturating_add_signed(direction);
+        let Some(&new_id) = candidates.get(target) else {
+            return KeyResult::Consumed;
+        };
+        self.navigate_to_span(new_id);
         KeyResult::Consumed
     }
 
     /// Move by half a viewport, keeping the cursor within span rows.
     fn move_cursor_page(&mut self, direction: isize) -> KeyResult {
         let rows = self.visible_rows();
-        let span_rows: Vec<_> = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, _)| (!is_legend_row(&rows, index)).then_some(index))
-            .collect();
-        let Some(current) = span_rows.iter().position(|index| *index == self.cursor) else {
+        let candidates = self.vertical_candidates(&rows);
+        let Some(current_id) = span_id_at(&rows, self.cursor) else {
+            return KeyResult::Consumed;
+        };
+        let Some(current) = candidates.iter().position(|id| *id == current_id) else {
             return KeyResult::Consumed;
         };
         let page = usize::from(self.viewport_height.max(1) / 2).max(1);
         let target = current
             .saturating_add_signed(direction.saturating_mul(page as isize))
-            .min(span_rows.len().saturating_sub(1));
-        let Some(&row_index) = span_rows.get(target) else {
+            .min(candidates.len().saturating_sub(1));
+        let Some(&new_id) = candidates.get(target) else {
             return KeyResult::Consumed;
         };
-        let Some(new_id) = span_id_at(&rows, row_index) else {
-            return KeyResult::Consumed;
-        };
+        self.navigate_to_span(new_id);
+        KeyResult::Consumed
+    }
 
+    fn vertical_candidates(&self, rows: &[FlameRow]) -> Vec<SpanId> {
+        match self.vertical_navigation {
+            VerticalNavigation::VisibleRows => rows
+                .iter()
+                .filter_map(|row| match row.kind {
+                    RowKind::Span { span_id, .. } => Some(span_id),
+                    RowKind::Legend { .. } => None,
+                })
+                .collect(),
+            VerticalNavigation::Siblings => {
+                let Some(current_id) = span_id_at(rows, self.cursor) else {
+                    return Vec::new();
+                };
+                let path = ancestor_path(&self.root, current_id);
+                let Some(parent_index) = path.len().checked_sub(2) else {
+                    return Vec::new();
+                };
+                let Some(&parent_id) = path.get(parent_index) else {
+                    return Vec::new();
+                };
+                let Some(parent) = find_node(&self.root, parent_id) else {
+                    return Vec::new();
+                };
+                rows.iter()
+                    .filter_map(|row| match row.kind {
+                        RowKind::Span { span_id, .. }
+                            if parent.children.iter().any(|child| child.id == span_id) =>
+                        {
+                            Some(span_id)
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
+        }
+    }
+
+    fn navigate_to_span(&mut self, new_id: SpanId) {
         self.push_undo();
         if self.selected_for_legend.is_some() {
             self.selected_for_legend = Some(new_id);
@@ -540,6 +607,25 @@ impl FlameGraph {
             self.sync_path_to_cursor(new_id);
         }
         self.move_cursor_to_span(new_id);
+    }
+
+    fn set_mark(&mut self, mark: char) -> KeyResult {
+        if let Some(span_id) = self.selected_span() {
+            self.marks.insert(mark, span_id);
+        }
+        KeyResult::Consumed
+    }
+
+    fn jump_to_mark(&mut self, mark: char) -> KeyResult {
+        let Some(&span_id) = self.marks.get(&mark) else {
+            return KeyResult::Consumed;
+        };
+        if ancestor_path(&self.root, span_id).is_empty() {
+            return KeyResult::Consumed;
+        }
+        self.push_undo();
+        self.focus = None;
+        self.select_span(span_id);
         KeyResult::Consumed
     }
 
@@ -588,20 +674,19 @@ impl FlameGraph {
             }
         }
 
-        // If path has only one element (root), no-op.
-        if self.path.len() <= 1 {
+        let rows = self.visible_rows();
+        let Some(selected_id) = span_id_at(&rows, self.cursor) else {
             return KeyResult::Consumed;
-        }
+        };
+        let selected_path = ancestor_path(&self.root, selected_id);
+        let Some(parent_index) = selected_path.len().checked_sub(2) else {
+            return KeyResult::Consumed;
+        };
+        let parent_id = selected_path[parent_index];
+        let new_path = selected_path[..=parent_index].to_vec();
         self.push_undo();
-
-        // The parent is the second-to-last element in the path.
-        let parent_id = self.path[self.path.len() - 2];
-
-        // Start collapse animation for the parent (it's about to stop being expanded).
-        self.start_collapse(parent_id);
-
-        // Pop the leaf, making parent the new leaf (no longer expanded).
-        self.path.truncate(self.path.len() - 1);
+        self.transition_animations(&new_path);
+        self.path = new_path;
 
         // Sync legend first (changes visible rows), then position cursor.
         if self.selected_for_legend.is_some() {
@@ -757,6 +842,21 @@ mod tests {
         (root, cost_types)
     }
 
+    fn nested_tree() -> (SpanNode, Vec<CostType>) {
+        let mut builder = SpanNodeBuilder::new();
+        let a1 = builder.leaf("a1", vec![3.0]);
+        let a2 = builder.leaf("a2", vec![2.0]);
+        let a = builder.span("a", vec![5.0], vec![a1, a2]);
+        let b1 = builder.leaf("b1", vec![1.0]);
+        let b = builder.span("b", vec![1.0], vec![b1]);
+        let root = builder.span("root", vec![6.0], vec![a, b]);
+        let cost_types = vec![CostType {
+            name: "cpu",
+            color: Color::Red,
+        }];
+        (root, cost_types)
+    }
+
     #[test]
     fn initial_state_has_cursor_at_zero() {
         let (root, ct) = simple_tree();
@@ -824,6 +924,89 @@ mod tests {
         assert_eq!(fg.path, path_before);
         assert!(fg.is_expanded(root.id));
         assert_eq!(fg.selected_span(), Some(root.children[1].id));
+    }
+
+    #[test]
+    fn sibling_navigation_never_enters_parent_or_aunt_rows() {
+        let (root, ct) = nested_tree();
+        let mut fg = FlameGraph::new(root.clone(), ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.set_vertical_navigation(VerticalNavigation::Siblings);
+        fg.handle_key(&make_key(KeyCode::Right)); // root -> a
+        fg.handle_key(&make_key(KeyCode::Right)); // a -> a1
+        for _ in 0..32 {
+            fg.tick(Duration::from_millis(16));
+        }
+        let path_before = fg.path.clone();
+        fg.handle_key(&make_key(KeyCode::Down));
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+        assert_eq!(fg.path, path_before);
+
+        // The last a-child cannot fall through to b, its aunt, or root.
+        fg.handle_key(&make_key(KeyCode::Down));
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+        assert_eq!(fg.path, path_before);
+        fg.handle_key(&make_key(KeyCode::Up));
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[0].id));
+
+        fg.set_viewport_height(4);
+        let page_down = KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        fg.handle_key(&page_down);
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+        fg.handle_key(&page_down);
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+    }
+
+    #[test]
+    fn left_ascends_from_the_selected_sibling_not_the_stale_path() {
+        let (root, ct) = nested_tree();
+        let mut fg = FlameGraph::new(root.clone(), ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.set_vertical_navigation(VerticalNavigation::Siblings);
+        fg.handle_key(&make_key(KeyCode::Right)); // root -> a
+        fg.handle_key(&make_key(KeyCode::Down)); // a -> b
+        fg.handle_key(&make_key(KeyCode::Left));
+        assert_eq!(fg.selected_span(), Some(root.id));
+    }
+
+    #[test]
+    fn marks_return_to_stable_spans_and_reveal_them() {
+        let (root, ct) = nested_tree();
+        let mut fg = FlameGraph::new(root, ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.set_vertical_navigation(VerticalNavigation::Siblings);
+        fg.handle_key(&make_key(KeyCode::Right)); // root -> a
+        fg.handle_key(&make_key(KeyCode::Right)); // a -> a1
+        fg.handle_key(&make_key(KeyCode::Char('m')));
+        fg.handle_key(&make_key(KeyCode::Char('a')));
+        fg.handle_key(&make_key(KeyCode::Down)); // a1 -> a2
+        assert_eq!(fg.selected_span(), Some(SpanId(1)));
+        fg.handle_key(&make_key(KeyCode::Char('`')));
+        fg.handle_key(&make_key(KeyCode::Char('a')));
+        assert_eq!(fg.selected_span(), Some(SpanId(0)));
+
+        // A mark remains useful after its branch was collapsed.
+        fg.handle_key(&make_key(KeyCode::Left));
+        fg.handle_key(&make_key(KeyCode::Char('`')));
+        fg.handle_key(&make_key(KeyCode::Char('a')));
+        assert_eq!(fg.selected_span(), Some(SpanId(0)));
+        assert!(fg.is_expanded(SpanId(2)));
+    }
+
+    #[test]
+    fn pending_mark_can_be_cancelled_without_moving() {
+        let (root, ct) = simple_tree();
+        let mut fg = FlameGraph::new(root, ct);
+        let selected = fg.selected_span();
+        fg.handle_key(&make_key(KeyCode::Char('m')));
+        fg.handle_key(&make_key(KeyCode::Esc));
+        fg.handle_key(&make_key(KeyCode::Char('a')));
+        assert_eq!(fg.selected_span(), selected);
     }
 
     #[test]

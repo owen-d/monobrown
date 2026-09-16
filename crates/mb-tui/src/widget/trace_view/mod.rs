@@ -10,8 +10,9 @@
 //! invents missing endpoints. Recorded intervals retain their absolute offset
 //! and duration; individual observations remain distinct labeled leaves.
 //!
-//! Controls match the flame graph: j/k select rows, h/l collapse/expand, f/F
-//! focus/unfocus, u/r undo/redo, and Enter toggles selected-row details.
+//! Controls match the flame graph: j/k select siblings, h/l collapse/expand,
+//! m then a-z sets a mark, backtick then a-z jumps to a mark, f/F focus/unfocus,
+//! u/r undo/redo, and Enter toggles selected-row details.
 //!
 //! ```rust
 //! use mb_tui::widget::trace_view::{

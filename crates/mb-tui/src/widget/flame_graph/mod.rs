@@ -4,7 +4,9 @@
 //! Each bar is segmented by cost type (e.g. cpu, io, mem) with proportional
 //! widths and distinct colors. Navigation uses vim-style keys:
 //!
-//! - **j/k** or **Up/Down**: move cursor between visible rows
+//! - **j/k** or **Up/Down**: move cursor between configured vertical peers
+//! - **Ctrl-D/Ctrl-U**: move by a bounded half-page
+//! - **m** then **a-z**: set a mark; **`** then **a-z**: jump to a mark
 //! - **l** or **Right**: expand children or descend into first child
 //! - **h** or **Left**: collapse children or ascend to parent
 //! - **Enter**: toggle cost legend for the selected span
@@ -17,7 +19,7 @@ mod state;
 pub use data::{CostBreakdown, CostType, SpanId, SpanNode, SpanNodeBuilder};
 pub use layout::{FlameRow, RowKind};
 pub use render::BarStyle;
-pub use state::{CursorNavigation, FlameGraph};
+pub use state::{CursorNavigation, FlameGraph, VerticalNavigation};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

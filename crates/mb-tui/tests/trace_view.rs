@@ -143,6 +143,25 @@ fn root_track_is_not_rendered_twice_as_group_and_track() {
 }
 
 #[test]
+fn trace_vertical_navigation_stays_within_the_selected_track() {
+    let mut input = data(vec![
+        item(1, "first", TraceTiming::Instant(0)),
+        item(2, "last", TraceTiming::Instant(1)),
+    ]);
+    input.tracks.push(TraceTrack {
+        id: TrackId(1),
+        group: Some(GroupId(10)),
+        label: "stage 0".into(),
+        items: vec![item(3, "aunt", TraceTiming::Instant(2))],
+    });
+    let mut view = TraceView::new(input).unwrap();
+    assert!(view.select_item(ItemId(2)));
+    finish(&mut view);
+    view.handle_key(&KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+    assert_eq!(view.selected_item().unwrap().id, ItemId(2));
+}
+
+#[test]
 fn flame_graph_navigation_and_animation_are_reused() {
     let mut view = fixture();
     assert!(view.select_item(ItemId(1)));

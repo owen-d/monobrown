@@ -13,7 +13,7 @@ use super::layout::TimeWindow;
 use crate::input::KeyResult;
 use crate::theme;
 use crate::widget::flame_graph::{
-    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode,
+    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode, VerticalNavigation,
 };
 
 const ROLE_COUNT: usize = 5;
@@ -51,6 +51,7 @@ impl TraceView {
         let root = projection.root(&data);
         let mut graph = FlameGraph::new(root, role_cost_types());
         graph.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        graph.set_vertical_navigation(VerticalNavigation::Siblings);
         Ok(Self {
             data,
             graph,
@@ -76,6 +77,11 @@ impl TraceView {
     /// Whether a terminal event loop should continue animation redraws.
     pub fn needs_idle_render(&self) -> bool {
         self.graph.needs_idle_render()
+    }
+
+    /// Whether a two-key mark command is waiting for its name.
+    pub fn mark_pending(&self) -> bool {
+        self.graph.mark_pending()
     }
 
     /// Dispatch navigation through the shared flame-graph interaction model.
