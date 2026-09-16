@@ -1,17 +1,17 @@
-//! Hierarchical trace events using the established flame-graph presentation.
+//! Hierarchical trace events on an absolute-time waterfall.
 //!
 //! ```text
 //! supplied display facts -> checked trace hierarchy
-//! keys                   -> shared flame-graph navigation + animation
-//!                                      -> labels + semantic bars
+//! keys                   -> shared hierarchy navigation + animation
+//!                                      -> UTC + offset + duration + bars
 //! ```
 //!
 //! Callers own correlation and time meaning. This widget never pairs events or
-//! invents missing endpoints. Recorded intervals contribute proportional bar
-//! weight; individual observations remain distinct labeled leaves.
+//! invents missing endpoints. Recorded intervals retain their absolute offset
+//! and duration; individual observations remain distinct labeled leaves.
 //!
 //! Controls match the flame graph: j/k select rows, h/l collapse/expand, f/F
-//! focus/unfocus, u/r undo/redo, and Enter toggles the semantic legend.
+//! focus/unfocus, u/r undo/redo, and Enter toggles selected-row details.
 //!
 //! ```rust
 //! use mb_tui::widget::trace_view::{

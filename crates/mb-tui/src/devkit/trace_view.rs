@@ -41,6 +41,12 @@ pub fn trace_view_interactive_catalog() -> ScenarioCatalog<TraceView> {
             key(KeyCode::Char('h')),
         ],
     });
+    catalog.add(Scenario {
+        name: "detail-inspector",
+        description: "Selected trace timing and payload details",
+        state: overview(),
+        inputs: vec![key(KeyCode::Enter)],
+    });
     catalog
 }
 
@@ -196,7 +202,10 @@ fn item(id: u64, category: CategoryId, label: &str, timing: TraceTiming) -> Trac
         category,
         label: label.into(),
         timing,
-        details: vec![("source".into(), "owned fixture".into())],
+        details: vec![
+            ("source".into(), "owned fixture".into()),
+            ("payload".into(), r#"{"ok":true,"attempt":2}"#.into()),
+        ],
     }
 }
 

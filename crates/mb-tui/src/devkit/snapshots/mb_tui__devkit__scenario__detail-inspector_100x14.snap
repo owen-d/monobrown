@@ -10,9 +10,4 @@ Operation                  Observed UTC             Offset     Duration   0ns   
         admitted           21:48:28.185750000Z      +0ns       —          ◆
         planning           21:48:28.186750000Z      +1ms       219ms      ╺━━━━━━╸
         completed          21:48:28.875750000Z      +690ms     —                                   ◆
-    node: completed
-    observed UTC: 2026-09-15 21:48:28.87575Z
-    offset: +690ms
-    duration: unavailable
-    source: owned fixture
-    payload:
+    ▸ stage 0              21:48:28.225750000Z      +40ms      260ms       ╺━━━━━━━━╸

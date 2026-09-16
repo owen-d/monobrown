@@ -1,4 +1,4 @@
-//! Trace projection over the established flame-graph presentation engine.
+//! Trace projection over the shared hierarchy navigation engine.
 
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -24,8 +24,7 @@ pub(crate) enum TraceSpan {
     Item(ItemId),
 }
 
-/// A trace hierarchy presented by the same tree, navigation, and animation
-/// engine as Descendit's flame graph.
+/// A trace hierarchy with shared tree navigation and animated disclosure.
 #[derive(Clone)]
 pub struct TraceView {
     data: TraceData,
