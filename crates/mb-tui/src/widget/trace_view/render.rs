@@ -206,7 +206,12 @@ fn draw_row(
             .iter()
             .find(|track| track.id == id)
             .is_some_and(|track| !track.items.is_empty()),
-        TraceSpan::Item(_) => false,
+        TraceSpan::Item(id) => state
+            .data()
+            .tracks
+            .iter()
+            .find_map(|track| find_item(&track.items, id))
+            .is_some_and(|item| !item.children.is_empty()),
     };
     let expanded = state
         .span_id_for(kind)
@@ -322,8 +327,7 @@ fn trace_row(state: &TraceView, kind: TraceSpan) -> (String, TraceTiming, TraceV
                 .data()
                 .tracks
                 .iter()
-                .flat_map(|track| track.items.iter())
-                .find(|item| item.id == id)
+                .find_map(|track| find_item(&track.items, id))
                 .expect("trace item span must resolve");
             let role = state
                 .data()

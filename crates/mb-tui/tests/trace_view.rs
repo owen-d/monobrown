@@ -129,6 +129,13 @@ fn span_expands_to_endpoint_children() {
     );
     assert_eq!(view.selected_item().unwrap().id, ItemId(11));
     assert_eq!(view.visible_row_count(), 7);
+
+    // Rendering the selected child exercises recursive item lookup; before
+    // the hierarchy fix this path panicked because only top-level items were
+    // searched.
+    let rendered = text(&frame(&mut view, 100, 12));
+    assert!(rendered.contains("inspect_result c"));
+
     assert!(
         view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE))
             == KeyResult::Consumed
