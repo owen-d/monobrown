@@ -2,15 +2,15 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-Trace · request 01a0a709 · 2026-09-15 21:48:28.18575Z → 2026-09-15 21:48:28.87575Z · 690ms
+Trace · request 01a0a709 · 21:48:28 → 21:48:28 · 690ms
 Operation                  Observed UTC             Offset     Duration   0ns        345ms     690ms
-▾ trace                    21:48:28.185750000Z      +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-  ▾ request 01a0a709       21:48:28.185750000Z      +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-    ▾ query                21:48:28.185750000Z      +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-        admitted           21:48:28.185750000Z      +0ns       —          ◆
-        planning           21:48:28.186750000Z      +1ms       219ms      ╺━━━━━━╸
+▾ trace                    21:48:28                 +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+  ▾ request 01a0a709       21:48:28                 +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+    ▾ query                21:48:28                 +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+        admitted           21:48:28                 +0ns       —          ◆
+        planning           21:48:28                 +1ms       219ms      ╺━━━━━━╸
     node: planning
-    observed UTC: 2026-09-15 21:48:28.18675Z
+    observed UTC: 21:48:28
     offset: +1ms
     duration: 219ms
     source: owned fixture

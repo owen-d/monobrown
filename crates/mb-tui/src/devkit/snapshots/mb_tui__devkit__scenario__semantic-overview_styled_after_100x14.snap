@@ -2,16 +2,16 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-<fg:white,bold>Trace · request 01a0a709 · 2026-09-15 21:48:28.18575Z → 2026-09-15 21:48:28.87575Z · 690ms</>
+<fg:white,bold>Trace · request 01a0a709 · 21:48:28 → 21:48:28 · 690ms</>
 <fg:#a0a0a0>Operation</>                  <fg:#a0a0a0>Observed UTC</>             <fg:#a0a0a0>Offset</>     <fg:#a0a0a0>Duration</>   <fg:#a0a0a0>0ns</>        <fg:#a0a0a0>345ms</>     <fg:#a0a0a0>690ms</>
-<fg:#a0a0a0>▾ trace</>                    <fg:#a0a0a0>21:48:28.185750000Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>  ▾ request 01a0a709</>       <fg:#a0a0a0>21:48:28.185750000Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>    ▾ query</>                <fg:#a0a0a0>21:48:28.185750000Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        admitted</>           <fg:#a0a0a0>21:48:28.185750000Z</>      <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:#a0a0a0>◆</>
-<fg:cyan>        planning</>           <fg:#a0a0a0>21:48:28.186750000Z</>      <fg:#a0a0a0>+1ms</>       <fg:#a0a0a0>219ms</>      <fg:cyan>╺━━━━━━╸</>
-<fg:white,bold>        completed</>          <fg:#a0a0a0>21:48:28.875750000Z</>      <fg:#a0a0a0>+690ms</>     <fg:#a0a0a0>—</>                                   <fg:green>◆</>
+<fg:#a0a0a0>▾ trace</>                    <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>  ▾ request 01a0a709</>       <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>    ▾ query</>                <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
+<fg:#a0a0a0>        admitted</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:#a0a0a0>◆</>
+<fg:cyan>        planning</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+1ms</>       <fg:#a0a0a0>219ms</>      <fg:cyan>╺━━━━━━╸</>
+<fg:white,bold>        completed</>          <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+690ms</>     <fg:#a0a0a0>—</>                                   <fg:green>◆</>
     <fg:#a0a0a0>node: completed</>
-    <fg:#a0a0a0>observed UTC: 2026-09-15 21:48:28.87575Z</>
+    <fg:#a0a0a0>observed UTC: 21:48:28</>
     <fg:#a0a0a0>offset: +690ms</>
     <fg:#a0a0a0>duration: unavailable</>
     <fg:white>source: owned fixture</>

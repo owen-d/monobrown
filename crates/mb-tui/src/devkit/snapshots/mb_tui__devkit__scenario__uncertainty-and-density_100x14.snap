@@ -2,14 +2,14 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-Trace · partial capture · 1970-01-01 00:00:00.00000002Z → 1970-01-01 00:00:00.00000008Z · 60ns
+Trace · partial capture · 00:00:00 → 00:00:00 · 60ns
 Operation                  Observed UTC             Offset     Duration   0ns        30ns       60ns
-▾ trace                    00:00:00.000000020Z      +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-  ▾ partial capture        00:00:00.000000020Z      +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-    ▾ evidence             00:00:00.000000020Z      +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-        observed           00:00:00.000000020Z      +0ns       —          ◆
-        failed             00:00:00.000000020Z      +0ns       —          ◆
-        missing start      00:00:00.000000040Z      +20ns      —                  ◁
-        clock regression   00:00:00.000000080Z      +60ns      —                      ◁            ▷
-        missing end        00:00:00.000000060Z      +40ns      —                          ▷
+▾ trace                    00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+  ▾ partial capture        00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+    ▾ evidence             00:00:00                 +0ns       60ns       ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
+        observed           00:00:00                 +0ns       —          ◆
+        failed             00:00:00                 +0ns       —          ◆
+        missing start      00:00:00                 +20ns      —                  ◁
+        clock regression   00:00:00                 +60ns      —                      ◁            ▷
+        missing end        00:00:00                 +40ns      —                          ▷
         partial coverage   —                        —          —

@@ -245,7 +245,7 @@ fn draw_row(
             x,
             y,
             columns.utc,
-            observed.map_or_else(|| "—".to_owned(), |at| format_row_utc(at, columns.utc)),
+            observed.map_or_else(|| "—".to_owned(), format_row_utc),
             theme::dim(),
         );
         x += columns.utc + 1;
@@ -579,32 +579,14 @@ fn project_time(time: i64, window: (i64, i64), width: u16) -> u16 {
 
 fn format_utc(unix_nanos: i64) -> String {
     let seconds = unix_nanos.div_euclid(1_000_000_000);
-    let nanos = unix_nanos.rem_euclid(1_000_000_000) as u32;
-    DateTime::<Utc>::from_timestamp(seconds, nanos).map_or_else(
+    DateTime::<Utc>::from_timestamp(seconds, 0).map_or_else(
         || format!("{unix_nanos}ns"),
-        |value| {
-            let base = value.format("%Y-%m-%d %H:%M:%S").to_string();
-            let fraction = format!("{nanos:09}").trim_end_matches('0').to_owned();
-            if fraction.is_empty() {
-                format!("{base}Z")
-            } else {
-                format!("{base}.{fraction}Z")
-            }
-        },
+        |value| value.format("%H:%M:%S").to_string(),
     )
 }
 
-fn format_row_utc(unix_nanos: i64, width: u16) -> String {
-    let full = format_utc(unix_nanos);
-    if full.len() <= usize::from(width) {
-        return full;
-    }
-    let seconds = unix_nanos.div_euclid(1_000_000_000);
-    let nanos = unix_nanos.rem_euclid(1_000_000_000) as u32;
-    DateTime::<Utc>::from_timestamp(seconds, nanos).map_or_else(
-        || format!("{unix_nanos}ns"),
-        |value| format!("{}.{nanos:09}Z", value.format("%H:%M:%S")),
-    )
+fn format_row_utc(unix_nanos: i64) -> String {
+    format_utc(unix_nanos)
 }
 
 fn format_offset(nanos: i128) -> String {

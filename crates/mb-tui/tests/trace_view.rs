@@ -100,7 +100,7 @@ fn selected_row_expands_observed_time_and_details() {
     finish(&mut view);
     let rendered = text(&frame(&mut view, 140, 20));
     assert!(rendered.contains("Observed UTC"));
-    assert!(rendered.contains("1970-01-01"));
+    assert!(rendered.contains("00:00:00"));
     assert!(rendered.contains("observed UTC:"));
     assert!(rendered.contains("source: fixture"));
     assert!(rendered.contains("payload:"));
