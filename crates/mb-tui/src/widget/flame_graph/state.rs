@@ -857,24 +857,35 @@ impl FlameGraph {
             return KeyResult::Consumed;
         };
         let parent_id = selected_path[parent_index];
-        if self.root_visibility == RootVisibility::Hidden && parent_id == self.root.id {
-            return KeyResult::Consumed;
-        }
-        let new_path = selected_path[..=parent_index].to_vec();
+        let collapse_top_level =
+            self.root_visibility == RootVisibility::Hidden && parent_id == self.root.id;
+        let new_path = if collapse_top_level {
+            selected_path.clone()
+        } else {
+            selected_path[..=parent_index].to_vec()
+        };
+        let selection_id = if collapse_top_level {
+            selected_id
+        } else {
+            parent_id
+        };
         self.push_undo();
         self.disclosed.retain(|id| {
             !ancestor_path(&self.root, *id)
                 .iter()
-                .any(|ancestor| *ancestor == parent_id)
+                .any(|ancestor| *ancestor == selection_id)
         });
+        if collapse_top_level {
+            self.start_collapse(selected_id);
+        }
         self.transition_animations(&new_path);
         self.path = new_path;
 
         // Sync legend first (changes visible rows), then position cursor.
         if self.selected_for_legend.is_some() {
-            self.selected_for_legend = Some(parent_id);
+            self.selected_for_legend = Some(selection_id);
         }
-        self.move_cursor_to_span(parent_id);
+        self.move_cursor_to_span(selection_id);
         KeyResult::Consumed
     }
 

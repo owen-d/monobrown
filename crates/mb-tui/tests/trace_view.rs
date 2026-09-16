@@ -320,8 +320,14 @@ fn trace_view_navigation_uses_immediate_disclosure() {
 }
 
 #[test]
-fn hidden_trace_root_is_not_navigable() {
-    let mut view = fixture();
+fn hidden_trace_root_collapses_top_level_group() {
+    let mut input = data(vec![
+        item(1, "tool: unknown", TraceTiming::Instant(0)),
+        item(2, "reasoning", TraceTiming::Instant(2)),
+    ]);
+    input.groups[0].label = "session".into();
+    input.tracks[0].label = "session".into();
+    let mut view = TraceView::new(input).unwrap();
     assert!(view.select_item(ItemId(1)));
     for _ in 0..2 {
         assert_eq!(
@@ -330,6 +336,13 @@ fn hidden_trace_root_is_not_navigable() {
         );
     }
     assert_eq!(view.selected_group(), Some(GroupId(10)));
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    assert_eq!(view.selected_group(), Some(GroupId(10)));
+    assert!(view.is_group_collapsed(GroupId(10)));
+    assert_eq!(view.visible_row_count(), 2);
     assert_eq!(
         view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
         KeyResult::Consumed
