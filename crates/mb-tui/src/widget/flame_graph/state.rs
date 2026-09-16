@@ -150,6 +150,8 @@ impl FlameGraph {
             return match key.code {
                 KeyCode::Char('u') => self.move_cursor_page(-1),
                 KeyCode::Char('d') => self.move_cursor_page(1),
+                KeyCode::Char('k') => self.move_cursor_flattened(-1),
+                KeyCode::Char('j') => self.move_cursor_flattened(1),
                 _ => KeyResult::Ignored,
             };
         }
@@ -525,7 +527,21 @@ impl FlameGraph {
     }
 
     fn move_cursor_vertical(&mut self, rows: &[FlameRow], direction: isize) -> KeyResult {
-        let candidates = self.vertical_candidates(rows);
+        self.move_cursor_with_policy(rows, direction, self.vertical_navigation)
+    }
+
+    fn move_cursor_flattened(&mut self, direction: isize) -> KeyResult {
+        let rows = self.visible_rows();
+        self.move_cursor_with_policy(&rows, direction, VerticalNavigation::VisibleRows)
+    }
+
+    fn move_cursor_with_policy(
+        &mut self,
+        rows: &[FlameRow],
+        direction: isize,
+        navigation: VerticalNavigation,
+    ) -> KeyResult {
+        let candidates = self.vertical_candidates(rows, navigation);
         let Some(current_id) = span_id_at(rows, self.cursor) else {
             return KeyResult::Consumed;
         };
@@ -543,7 +559,7 @@ impl FlameGraph {
     /// Move by half a viewport, keeping the cursor within span rows.
     fn move_cursor_page(&mut self, direction: isize) -> KeyResult {
         let rows = self.visible_rows();
-        let candidates = self.vertical_candidates(&rows);
+        let candidates = self.vertical_candidates(&rows, self.vertical_navigation);
         let Some(current_id) = span_id_at(&rows, self.cursor) else {
             return KeyResult::Consumed;
         };
@@ -561,8 +577,12 @@ impl FlameGraph {
         KeyResult::Consumed
     }
 
-    fn vertical_candidates(&self, rows: &[FlameRow]) -> Vec<SpanId> {
-        match self.vertical_navigation {
+    fn vertical_candidates(
+        &self,
+        rows: &[FlameRow],
+        navigation: VerticalNavigation,
+    ) -> Vec<SpanId> {
+        match navigation {
             VerticalNavigation::VisibleRows => rows
                 .iter()
                 .filter_map(|row| match row.kind {
@@ -963,6 +983,46 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_jk_use_flattened_visible_rows() {
+        let (root, ct) = nested_tree();
+        let mut fg = FlameGraph::new(root.clone(), ct);
+        fg.set_cursor_navigation(CursorNavigation::PreserveExpansion);
+        fg.set_vertical_navigation(VerticalNavigation::Siblings);
+        fg.handle_key(&make_key(KeyCode::Right)); // root -> a
+        fg.handle_key(&make_key(KeyCode::Right)); // a -> a1
+        for _ in 0..32 {
+            fg.tick(Duration::from_millis(16));
+        }
+
+        let ctrl_j = KeyEvent {
+            code: KeyCode::Char('j'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        fg.handle_key(&ctrl_j); // a1 -> a2
+        fg.handle_key(&ctrl_j); // a2 -> b, crossing levels
+        assert_eq!(fg.selected_span(), Some(root.children[1].id));
+
+        let ctrl_k = KeyEvent {
+            code: KeyCode::Char('k'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        fg.handle_key(&ctrl_k);
+        assert_eq!(fg.selected_span(), Some(root.children[0].children[1].id));
+        assert_eq!(
+            fg.path,
+            vec![
+                root.id,
+                root.children[0].id,
+                root.children[0].children[0].id
+            ]
+        );
+    }
+
+    #[test]
     fn left_ascends_from_the_selected_sibling_not_the_stale_path() {
         let (root, ct) = nested_tree();
         let mut fg = FlameGraph::new(root.clone(), ct);
@@ -1038,12 +1098,22 @@ mod tests {
         let (root, ct) = simple_tree();
         let mut fg = FlameGraph::new(root, ct);
         let key = KeyEvent {
-            code: KeyCode::Char('j'),
+            code: KeyCode::Char('x'),
             modifiers: KeyModifiers::CONTROL,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         };
         assert_eq!(fg.handle_key(&key), KeyResult::Ignored);
+
+        fg.handle_key(&make_key(KeyCode::Right));
+        let ctrl_j = KeyEvent {
+            code: KeyCode::Char('j'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        assert_eq!(fg.handle_key(&ctrl_j), KeyResult::Consumed);
+        assert_eq!(fg.selected_span(), Some(fg.root.children[1].id));
     }
 
     #[test]

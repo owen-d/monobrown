@@ -159,6 +159,23 @@ fn trace_vertical_navigation_stays_within_the_selected_track() {
     finish(&mut view);
     view.handle_key(&KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     assert_eq!(view.selected_item().unwrap().id, ItemId(2));
+
+    let ctrl_j = KeyEvent {
+        code: KeyCode::Char('j'),
+        modifiers: KeyModifiers::CONTROL,
+        kind: crossterm::event::KeyEventKind::Press,
+        state: crossterm::event::KeyEventState::NONE,
+    };
+    view.handle_key(&ctrl_j);
+    assert_eq!(view.selected_track().unwrap().id, TrackId(1));
+    let ctrl_k = KeyEvent {
+        code: KeyCode::Char('k'),
+        modifiers: KeyModifiers::CONTROL,
+        kind: crossterm::event::KeyEventKind::Press,
+        state: crossterm::event::KeyEventState::NONE,
+    };
+    view.handle_key(&ctrl_k);
+    assert_eq!(view.selected_item().unwrap().id, ItemId(2));
 }
 
 #[test]

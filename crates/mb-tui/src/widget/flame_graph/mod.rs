@@ -6,6 +6,7 @@
 //!
 //! - **j/k** or **Up/Down**: move cursor between configured vertical peers
 //! - **Ctrl-D/Ctrl-U**: move by a bounded half-page
+//! - **Ctrl-J/Ctrl-K**: move through all visible rows
 //! - **m** then **a-z**: set a mark; **`** then **a-z**: jump to a mark
 //! - **l** or **Right**: expand children or descend into first child
 //! - **h** or **Left**: collapse children or ascend to parent
