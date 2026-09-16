@@ -7,7 +7,4 @@ expression: text
 <fg:#a0a0a0>▾ trace</>                    <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
 <fg:#a0a0a0>  ▾ request 01a0a709</>       <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
 <fg:white,bold>    ▸ query</>                <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        admitted</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:#a0a0a0>◆</>
-<fg:cyan>        planning</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+1ms</>       <fg:#a0a0a0>219ms</>      <fg:cyan>╺━━━━━━╸</>
-<fg:green>        completed</>          <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+690ms</>     <fg:#a0a0a0>—</>                                   <fg:green>◆</>
 <fg:#a0a0a0>    ▸ stage 0</>              <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+40ms</>      <fg:#a0a0a0>260ms</>       <fg:#a0a0a0>╺━━━━━━━━╸</>

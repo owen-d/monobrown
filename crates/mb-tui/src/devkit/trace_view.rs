@@ -209,6 +209,7 @@ fn item(id: u64, category: CategoryId, label: &str, timing: TraceTiming) -> Trac
             ("source".into(), "owned fixture".into()),
             ("payload".into(), r#"{"ok":true,"attempt":2}"#.into()),
         ],
+        children: vec![],
     }
 }
 

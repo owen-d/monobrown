@@ -393,8 +393,7 @@ fn draw_details(
             .data()
             .tracks
             .iter()
-            .flat_map(|track| track.items.iter())
-            .find(|item| item.id == id)
+            .find_map(|track| find_item(&track.items, id))
     {
         for (name, value) in &item.details {
             if y >= area.bottom() {
@@ -432,6 +431,18 @@ fn draw_details(
         }
     }
     y
+}
+
+fn find_item(items: &[TraceItem], id: super::data::ItemId) -> Option<&TraceItem> {
+    for item in items {
+        if item.id == id {
+            return Some(item);
+        }
+        if let Some(found) = find_item(&item.children, id) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn track_details(state: &TraceView, kind: TraceSpan) -> Vec<(String, String)> {

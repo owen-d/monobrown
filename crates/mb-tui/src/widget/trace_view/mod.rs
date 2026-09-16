@@ -31,6 +31,7 @@
 //!             id: ItemId(0), category: CategoryId(0), label: "work".into(),
 //!             timing: TraceTiming::Interval { start: 100, end: 120 },
 //!             details: vec![("source".into(), "fixture".into())],
+//!             children: vec![],
 //!         }],
 //!     }],
 //! })?;

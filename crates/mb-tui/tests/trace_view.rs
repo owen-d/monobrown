@@ -23,6 +23,7 @@ fn item(id: u64, label: &str, timing: TraceTiming) -> TraceItem {
             ("source".into(), "fixture".into()),
             ("payload".into(), r#"{"ok":true,"count":2}"#.into()),
         ],
+        children: vec![],
     }
 }
 
@@ -106,6 +107,33 @@ fn selected_row_expands_observed_time_and_details() {
     assert!(rendered.contains("source: fixture"));
     assert!(rendered.contains("payload:"));
     assert!(rendered.contains("true"));
+}
+
+#[test]
+fn span_expands_to_endpoint_children() {
+    let mut span = item(
+        10,
+        "tool: inspect_result",
+        TraceTiming::Interval { start: 10, end: 20 },
+    );
+    span.children = vec![
+        item(11, "inspect_result call", TraceTiming::Instant(10)),
+        item(12, "tool output", TraceTiming::Instant(20)),
+    ];
+    let mut view = TraceView::new(data(vec![span])).unwrap();
+    assert!(view.select_item(ItemId(10)));
+    assert_eq!(view.visible_row_count(), 5);
+    assert_eq!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE)),
+        KeyResult::Consumed
+    );
+    assert_eq!(view.selected_item().unwrap().id, ItemId(11));
+    assert_eq!(view.visible_row_count(), 7);
+    assert!(
+        view.handle_key(&KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE))
+            == KeyResult::Consumed
+    );
+    assert_eq!(view.visible_row_count(), 5);
 }
 
 #[test]

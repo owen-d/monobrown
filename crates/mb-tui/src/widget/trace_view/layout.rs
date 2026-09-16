@@ -68,6 +68,7 @@ mod tests {
                         label: "event".into(),
                         timing: TraceTiming::Instant(at),
                         details: vec![],
+                        children: vec![],
                     })
                     .collect(),
             }],

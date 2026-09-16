@@ -107,8 +107,7 @@ impl TraceView {
         self.data
             .tracks
             .iter()
-            .flat_map(|track| &track.items)
-            .find(|item| item.id == id)
+            .find_map(|track| find_item(&track.items, id))
     }
 
     /// Return the selected track for either its header or one of its items.
@@ -119,7 +118,7 @@ impl TraceView {
                 .data
                 .tracks
                 .iter()
-                .find(|track| track.items.iter().any(|item| item.id == id)),
+                .find(|track| find_item(&track.items, id).is_some()),
             TraceSpan::Root | TraceSpan::Group(_) => None,
         }
     }
@@ -138,7 +137,7 @@ impl TraceView {
                 .data
                 .tracks
                 .iter()
-                .find(|track| track.items.iter().any(|item| item.id == id))
+                .find(|track| find_item(&track.items, id).is_some())
                 .and_then(|track| track.group),
             TraceSpan::Root => None,
         }
@@ -270,6 +269,18 @@ impl TraceView {
     }
 }
 
+fn find_item(items: &[TraceItem], id: ItemId) -> Option<&TraceItem> {
+    for item in items {
+        if item.id == id {
+            return Some(item);
+        }
+        if let Some(found) = find_item(&item.children, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 #[derive(Default)]
 struct Projection {
     next_span: u32,
@@ -352,11 +363,16 @@ impl Projection {
             .map_or(TraceVisualRole::Neutral, |category| category.role);
         let mut amounts = vec![0.0; ROLE_COUNT];
         amounts[role_index(role)] = timing_weight(item.timing);
+        let children = item
+            .children
+            .iter()
+            .map(|child| self.item(child, data))
+            .collect();
         let node = self.node(
             item.label.clone(),
             TraceSpan::Item(item.id),
             amounts,
-            vec![],
+            children,
         );
         self.item_spans.insert(item.id, node.id);
         node

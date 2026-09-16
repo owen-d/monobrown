@@ -116,6 +116,8 @@ pub struct TraceItem {
     pub timing: TraceTiming,
     /// Ordered key/value pairs; controls render as spaces, and overflow is counted.
     pub details: Vec<(String, String)>,
+    /// Nested endpoint or lifecycle events owned by this item.
+    pub children: Vec<TraceItem>,
 }
 
 /// A named concurrent track. Items need not arrive in time order.
@@ -227,12 +229,7 @@ impl TraceData {
                 return Err(TraceError::UnknownGroup(group));
             }
             for item in &track.items {
-                if !categories.contains(&item.category) {
-                    return Err(TraceError::UnknownCategory(item.category));
-                }
-                if !items.insert(item.id) {
-                    return Err(TraceError::DuplicateItem(item.id));
-                }
+                validate_item(item, &categories, &mut items)?;
             }
         }
         Ok(())
@@ -252,8 +249,6 @@ impl TraceData {
             check_text(&group.label, &mut text_bytes)?;
         }
         for track in &self.tracks {
-            items += track.items.len();
-            check_limit(items, 65536, "items (65536)")?;
             check_limit(track.details.len(), 32, "detail pairs per track (32)")?;
             check_text(&track.label, &mut text_bytes)?;
             for (key, value) in &track.details {
@@ -261,16 +256,47 @@ impl TraceData {
                 check_text(value, &mut text_bytes)?;
             }
             for item in &track.items {
-                check_limit(item.details.len(), 32, "detail pairs per item (32)")?;
-                check_text(&item.label, &mut text_bytes)?;
-                for (key, value) in &item.details {
-                    check_text(key, &mut text_bytes)?;
-                    check_text(value, &mut text_bytes)?;
-                }
+                validate_item_size(item, &mut items, &mut text_bytes)?;
             }
         }
         Ok(())
     }
+}
+
+fn validate_item(
+    item: &TraceItem,
+    categories: &BTreeSet<CategoryId>,
+    items: &mut BTreeSet<ItemId>,
+) -> Result<(), TraceError> {
+    if !categories.contains(&item.category) {
+        return Err(TraceError::UnknownCategory(item.category));
+    }
+    if !items.insert(item.id) {
+        return Err(TraceError::DuplicateItem(item.id));
+    }
+    for child in &item.children {
+        validate_item(child, categories, items)?;
+    }
+    Ok(())
+}
+
+fn validate_item_size(
+    item: &TraceItem,
+    count: &mut usize,
+    text_bytes: &mut usize,
+) -> Result<(), TraceError> {
+    *count += 1;
+    check_limit(*count, 65536, "items (65536)")?;
+    check_limit(item.details.len(), 32, "detail pairs per item (32)")?;
+    check_text(&item.label, text_bytes)?;
+    for (key, value) in &item.details {
+        check_text(key, text_bytes)?;
+        check_text(value, text_bytes)?;
+    }
+    for child in &item.children {
+        validate_item_size(child, count, text_bytes)?;
+    }
+    Ok(())
 }
 
 /// Reject excess before the caller allocates proportional derived state.
