@@ -13,7 +13,8 @@ use super::layout::TimeWindow;
 use crate::input::KeyResult;
 use crate::theme;
 use crate::widget::flame_graph::{
-    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode, VerticalNavigation,
+    CostBreakdown, CostType, CursorNavigation, FlameGraph, SpanId, SpanNode, TransitionMode,
+    VerticalNavigation,
 };
 
 const ROLE_COUNT: usize = 5;
@@ -26,7 +27,7 @@ pub(crate) enum TraceSpan {
     Item(ItemId),
 }
 
-/// A trace hierarchy with shared tree navigation and animated disclosure.
+/// A trace hierarchy with shared tree navigation and immediate disclosure.
 #[derive(Clone)]
 pub struct TraceView {
     data: TraceData,
@@ -49,7 +50,8 @@ impl TraceView {
         let window = TimeWindow::fit(&data);
         let mut projection = Projection::default();
         let root = projection.root(&data);
-        let mut graph = FlameGraph::new(root, role_cost_types());
+        let mut graph = FlameGraph::new(root, role_cost_types())
+            .with_transition_mode(TransitionMode::Immediate);
         graph.set_cursor_navigation(CursorNavigation::PreserveExpansion);
         graph.set_vertical_navigation(VerticalNavigation::Siblings);
         Ok(Self {
@@ -69,7 +71,7 @@ impl TraceView {
         &self.data
     }
 
-    /// Advance the same expand/collapse transitions used by Descendit.
+    /// Advance shared transitions when a caller changes the graph policy.
     pub fn tick(&mut self, elapsed: Duration) {
         self.graph.tick(elapsed);
     }

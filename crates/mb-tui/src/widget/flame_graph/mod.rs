@@ -21,7 +21,7 @@ mod state;
 pub use data::{CostBreakdown, CostType, SpanId, SpanNode, SpanNodeBuilder};
 pub use layout::{FlameRow, RowKind};
 pub use render::BarStyle;
-pub use state::{CursorNavigation, FlameGraph, VerticalNavigation};
+pub use state::{CursorNavigation, FlameGraph, TransitionMode, VerticalNavigation};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

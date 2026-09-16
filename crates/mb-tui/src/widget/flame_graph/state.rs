@@ -53,6 +53,16 @@ pub enum VerticalNavigation {
     Siblings,
 }
 
+/// Whether disclosure changes animate or take effect synchronously.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TransitionMode {
+    /// Animate expand/collapse transitions.
+    #[default]
+    Animated,
+    /// Apply disclosure changes immediately without idle redraws.
+    Immediate,
+}
+
 #[derive(Clone, Copy)]
 enum MarkAction {
     Set,
@@ -83,6 +93,7 @@ pub struct FlameGraph {
     viewport_height: u16,
     cursor_navigation: CursorNavigation,
     vertical_navigation: VerticalNavigation,
+    transition_mode: TransitionMode,
     marks: HashMap<char, SpanId>,
     pending_mark: Option<MarkAction>,
 }
@@ -106,6 +117,7 @@ impl FlameGraph {
             viewport_height: 0,
             cursor_navigation: CursorNavigation::default(),
             vertical_navigation: VerticalNavigation::default(),
+            transition_mode: TransitionMode::default(),
             marks: HashMap::new(),
             pending_mark: None,
         }
@@ -119,6 +131,20 @@ impl FlameGraph {
     /// Configure whether vertical movement uses visible rows or siblings.
     pub fn set_vertical_navigation(&mut self, navigation: VerticalNavigation) {
         self.vertical_navigation = navigation;
+    }
+
+    /// Configure whether disclosure transitions animate.
+    pub fn set_transition_mode(&mut self, mode: TransitionMode) {
+        self.transition_mode = mode;
+        if mode == TransitionMode::Immediate {
+            self.animations.clear();
+        }
+    }
+
+    /// Configure transition behavior while constructing a widget.
+    pub fn with_transition_mode(mut self, mode: TransitionMode) -> Self {
+        self.set_transition_mode(mode);
+        self
     }
 
     /// Whether a mark key is pending its one-character name.
@@ -331,6 +357,9 @@ impl FlameGraph {
 impl FlameGraph {
     /// Start an expand animation for a node (children becoming visible).
     fn start_expand(&mut self, span_id: SpanId) {
+        if self.transition_mode == TransitionMode::Immediate {
+            return;
+        }
         self.animations.insert(
             span_id,
             ExpandAnimation {
@@ -342,6 +371,9 @@ impl FlameGraph {
 
     /// Start a collapse animation for a node (children becoming hidden).
     fn start_collapse(&mut self, span_id: SpanId) {
+        if self.transition_mode == TransitionMode::Immediate {
+            return;
+        }
         if let Some(anim) = self.animations.get_mut(&span_id) {
             anim.target = 0.0;
         } else {
@@ -926,6 +958,34 @@ mod tests {
         assert!(fg.animations.contains_key(&fg.root.id));
         // Cursor ascends back to root.
         assert_eq!(fg.cursor, 0);
+    }
+
+    #[test]
+    fn immediate_transition_mode_changes_disclosure_without_animation() {
+        let (root, ct) = simple_tree();
+        let mut fg = FlameGraph::new(root, ct).with_transition_mode(TransitionMode::Immediate);
+
+        fg.handle_key(&make_key(KeyCode::Right));
+        assert!(fg.is_expanded(fg.root.id));
+        assert!(fg.animations.is_empty());
+        assert!(!fg.needs_idle_render());
+
+        fg.handle_key(&make_key(KeyCode::Left));
+        assert!(!fg.is_expanded(fg.root.id));
+        assert!(fg.animations.is_empty());
+        assert!(!fg.needs_idle_render());
+    }
+
+    #[test]
+    fn switching_to_immediate_clears_in_flight_transition() {
+        let (root, ct) = simple_tree();
+        let mut fg = FlameGraph::new(root, ct);
+        fg.handle_key(&make_key(KeyCode::Right));
+        assert!(!fg.animations.is_empty());
+
+        fg.set_transition_mode(TransitionMode::Immediate);
+        assert!(fg.animations.is_empty());
+        assert!(!fg.needs_idle_render());
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! supplied display facts -> checked trace hierarchy
-//! keys                   -> shared hierarchy navigation + animation
+//! keys                   -> shared hierarchy navigation + immediate disclosure
 //!                                      -> UTC + offset + duration + bars
 //! ```
 //!

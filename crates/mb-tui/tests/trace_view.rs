@@ -181,10 +181,10 @@ fn trace_vertical_navigation_stays_within_the_selected_track() {
 }
 
 #[test]
-fn flame_graph_navigation_and_animation_are_reused() {
+fn trace_view_navigation_uses_immediate_disclosure() {
     let mut view = fixture();
     assert!(view.select_item(ItemId(1)));
-    assert!(view.needs_idle_render());
+    assert!(!view.needs_idle_render());
     finish(&mut view);
     assert!(!view.is_group_collapsed(GroupId(10)));
     assert!(!view.needs_idle_render());
