@@ -1,8 +1,9 @@
 //! Centralized color and theme definitions for the TUI.
 //!
 //! All UI code should use these functions instead of hard-coding colors.
-//! Colors adapt to the terminal background (light vs dark) detected by
-//! [`palette`]. Code highlighting themes are also exposed here,
+//! Colors adapt to the terminal background (light vs dark) when an owning
+//! application explicitly asks [`palette`] to detect it; otherwise they use
+//! the dark-terminal defaults. Code highlighting themes are also exposed here,
 //! delegating to `syntect` / `two_face` under the hood.
 
 pub mod palette;

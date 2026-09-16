@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::time::Duration;
 
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::data::{
     GroupId, ItemId, TraceData, TraceError, TraceItem, TraceTiming, TraceTrack, TraceVisualRole,
@@ -49,6 +49,8 @@ pub struct TraceView {
     track_spans: BTreeMap<TrackId, SpanId>,
     window: TimeWindow,
     details_expanded: bool,
+    details_scroll_offset: usize,
+    details_viewport_height: u16,
     search_query: Option<String>,
     search_matches: Vec<SpanId>,
     search_index: usize,
@@ -79,6 +81,8 @@ impl TraceView {
             track_spans: projection.track_spans,
             window,
             details_expanded: false,
+            details_scroll_offset: 0,
+            details_viewport_height: 0,
             search_query: None,
             search_matches: Vec::new(),
             search_index: 0,
@@ -140,15 +144,49 @@ impl TraceView {
 
     /// Dispatch navigation through the shared flame-graph interaction model.
     pub fn handle_key(&mut self, key: &KeyEvent) -> KeyResult {
-        if key.code == crossterm::event::KeyCode::Enter
-            && !key.modifiers.intersects(
-                crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::ALT,
-            )
+        if key.code == KeyCode::Enter
+            && !key
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
         {
             self.details_expanded = !self.details_expanded;
+            self.reset_details_scroll();
             return KeyResult::Consumed;
         }
-        self.graph.handle_key(key)
+
+        if self.details_expanded
+            && !key
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            let page = self.details_page_height();
+            match key.code {
+                KeyCode::PageDown | KeyCode::Char(' ') => {
+                    self.details_scroll_offset = self.details_scroll_offset.saturating_add(page);
+                    return KeyResult::Consumed;
+                }
+                KeyCode::PageUp => {
+                    self.details_scroll_offset = self.details_scroll_offset.saturating_sub(page);
+                    return KeyResult::Consumed;
+                }
+                KeyCode::Home => {
+                    self.details_scroll_offset = 0;
+                    return KeyResult::Consumed;
+                }
+                KeyCode::End => {
+                    self.details_scroll_offset = usize::MAX;
+                    return KeyResult::Consumed;
+                }
+                _ => {}
+            }
+        }
+
+        let selected = self.selected_span_id();
+        let result = self.graph.handle_key(key);
+        if selected != self.selected_span_id() {
+            self.reset_details_scroll();
+        }
+        result
     }
 
     /// Return the selected trace item, or none for structural rows.
@@ -197,10 +235,15 @@ impl TraceView {
 
     /// Select and reveal one event by stable trace identity.
     pub fn select_item(&mut self, id: ItemId) -> bool {
-        self.item_spans
+        let selected = self
+            .item_spans
             .get(&id)
             .copied()
-            .is_some_and(|span| self.graph.select_span(span))
+            .is_some_and(|span| self.graph.select_span(span));
+        if selected {
+            self.reset_details_scroll();
+        }
+        selected
     }
 
     /// Current admitted time range.
@@ -273,7 +316,21 @@ impl TraceView {
 
     /// Toggle the selected row's details from an application shell.
     pub fn set_details_expanded(&mut self, expanded: bool) {
+        if self.details_expanded != expanded {
+            self.reset_details_scroll();
+        }
         self.details_expanded = expanded;
+    }
+
+    /// Current detail-document scroll offset.
+    pub(crate) fn details_scroll_offset(&self) -> usize {
+        self.details_scroll_offset
+    }
+
+    /// Update the detail pager state after rendering its current viewport.
+    pub(crate) fn set_details_viewport(&mut self, offset: usize, height: u16) {
+        self.details_scroll_offset = offset;
+        self.details_viewport_height = height;
     }
 
     /// Start a case-insensitive search over currently disclosed row labels and
@@ -297,6 +354,7 @@ impl TraceView {
             return self.search_status();
         }
         self.select_search_match();
+        self.reset_details_scroll();
         self.search_status()
     }
 
@@ -315,6 +373,7 @@ impl TraceView {
                 (index + 1) % self.search_matches.len()
             });
         self.select_search_match();
+        self.reset_details_scroll();
         self.search_status()
     }
 
@@ -335,6 +394,7 @@ impl TraceView {
                     .unwrap_or(self.search_matches.len() - 1)
             });
         self.select_search_match();
+        self.reset_details_scroll();
         self.search_status()
     }
 
@@ -406,6 +466,14 @@ impl TraceView {
         if let Some(&span) = self.search_matches.get(self.search_index) {
             self.graph.select_span(span);
         }
+    }
+
+    fn details_page_height(&self) -> usize {
+        usize::from(self.details_viewport_height.saturating_sub(1).max(1))
+    }
+
+    fn reset_details_scroll(&mut self) {
+        self.details_scroll_offset = 0;
     }
 
     fn refresh_search_matches(&mut self) {

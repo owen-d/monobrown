@@ -91,6 +91,18 @@ fn finish(view: &mut TraceView) {
     }
 }
 
+fn long_detail_view() -> TraceView {
+    let mut detailed = item(1, "inspect result", TraceTiming::Instant(0));
+    let objects = (0..24)
+        .map(|index| format!(r#"{{"index":{index}}}"#))
+        .collect::<Vec<_>>()
+        .join(",");
+    detailed.details = vec![("payload".into(), format!("[{objects}]"))];
+    let mut view = TraceView::new(data(vec![detailed])).unwrap();
+    assert!(view.select_item(ItemId(1)));
+    view
+}
+
 #[test]
 fn selected_row_expands_observed_time_and_details() {
     let mut view = fixture();
@@ -101,12 +113,72 @@ fn selected_row_expands_observed_time_and_details() {
     );
     finish(&mut view);
     let rendered = text(&frame(&mut view, 140, 20));
-    assert!(rendered.contains("Observed UTC"));
     assert!(rendered.contains("00:00:00"));
     assert!(rendered.contains("observed UTC:"));
     assert!(rendered.contains("source: fixture"));
     assert!(rendered.contains("payload:"));
     assert!(rendered.contains("true"));
+}
+
+#[test]
+fn details_use_a_split_pane_when_width_allows_it() {
+    let mut view = fixture();
+    view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    let rendered = text(&frame(&mut view, 100, 14));
+    let first_line = rendered.lines().next().unwrap_or_default();
+    assert!(
+        first_line.contains("details"),
+        "wide detail pane should share the header row with the waterfall:\n{rendered}"
+    );
+}
+
+#[test]
+fn details_stack_below_the_waterfall_when_width_is_tight() {
+    let mut view = fixture();
+    view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    let rendered = text(&frame(&mut view, 72, 14));
+    let detail_row = rendered
+        .lines()
+        .position(|line| line.contains("details"))
+        .expect("stacked detail pane should be rendered");
+    assert!(
+        detail_row > 2,
+        "tight detail pane should start below the waterfall header:\n{rendered}"
+    );
+}
+
+#[test]
+fn details_float_over_tiny_waterfalls() {
+    let mut view = fixture();
+    view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    let rendered = text(&frame(&mut view, 60, 7));
+    assert!(
+        rendered.contains("details"),
+        "tiny terminals should still expose details through the overlay:\n{rendered}"
+    );
+}
+
+#[test]
+fn long_details_scroll_instead_of_clipping() {
+    let mut view = long_detail_view();
+    view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    let first = text(&frame(&mut view, 100, 14));
+    assert!(
+        first.contains("\"index\": 0"),
+        "first detail page:\n{first}"
+    );
+
+    view.handle_key(&KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+    view.handle_key(&KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+    let scrolled = text(&frame(&mut view, 100, 14));
+    assert_ne!(first, scrolled);
+    assert!(
+        !scrolled.contains("\"index\": 0"),
+        "the detail pager should move past the first JSON object:\n{scrolled}"
+    );
 }
 
 #[test]

@@ -12,7 +12,8 @@
 //!
 //! Controls match the flame graph: j/k select siblings, h/l collapse/expand,
 //! m then a-z sets a mark, backtick then a-z jumps to a mark, f/F focus/unfocus,
-//! u/r undo/redo, and Enter toggles selected-row details.
+//! u/r undo/redo, Enter toggles selected-row details, and PageUp/PageDown,
+//! Home/End, or Space scroll the open detail pane.
 //!
 //! ```rust
 //! use mb_tui::widget::trace_view::{

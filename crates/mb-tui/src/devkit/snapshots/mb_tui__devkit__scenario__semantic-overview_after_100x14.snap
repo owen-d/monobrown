@@ -2,17 +2,17 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-Trace · request 01a0a709 · 21:48:28 → 21:48:28 · 690ms
-Operation                  Observed UTC             Offset     Duration   0ns        345ms     690ms
-  ▾ request 01a0a709       21:48:28                 +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-    ▾ query                21:48:28                 +0ns       690ms      ╺━━━━━━━━━━━━━━━━━━━━━━━━╸
-        admitted           21:48:28                 +0ns       —          ◆
-        planning           21:48:28                 +1ms       219ms      ╺━━━━━━╸
-        completed          21:48:28                 +690ms     —                                   ◆
-    node: completed
-    observed UTC: 21:48:28
-    offset: +690ms
-    duration: unavailable
-    source: owned fixture
-    payload:
-      {
+Trace · 690ms                               ┌details · completed*──────────────────────────────────┐
+Operation                                   │node: completed                                       │
+  ▾ request 01a0a709  +0ns · 690ms          │observed UTC: 21:48:28                                │
+    ▾ query  +0ns · 690ms                   │offset: +690ms                                        │
+        admitted  +0ns                      │duration: unavailable                                 │
+        planning  +1ms · 219ms              │source: owned fixture                                 │
+        completed  +690ms                   │payload:                                              │
+    ▸ stage 0  +40ms · 260ms                │{                                                     │
+                                            │  "attempt": 2,                                       │
+                                            │  "ok": true                                          │
+                                            │}                                                     │
+                                            │~                                                     │
+                                            │~                                                     │
+                                            └──────────────────────────────────────────────────────┘

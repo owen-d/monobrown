@@ -2,17 +2,17 @@
 source: crates/mb-tui/src/devkit/scenario.rs
 expression: text
 ---
-<fg:white,bold>Trace · request 01a0a709 · 21:48:28 → 21:48:28 · 690ms</>
-<fg:#a0a0a0>Operation</>                  <fg:#a0a0a0>Observed UTC</>             <fg:#a0a0a0>Offset</>     <fg:#a0a0a0>Duration</>   <fg:#a0a0a0>0ns</>        <fg:#a0a0a0>345ms</>     <fg:#a0a0a0>690ms</>
-<fg:#a0a0a0>  ▾ request 01a0a709</>       <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>    ▾ query</>                <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>690ms</>      <fg:#a0a0a0>╺━━━━━━━━━━━━━━━━━━━━━━━━╸</>
-<fg:#a0a0a0>        admitted</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+0ns</>       <fg:#a0a0a0>—</>          <fg:#a0a0a0>◆</>
-<fg:white,bold>        planning</>           <fg:#a0a0a0>21:48:28</>                 <fg:#a0a0a0>+1ms</>       <fg:#a0a0a0>219ms</>      <fg:cyan>╺━━━━━━╸</>
-    <fg:#a0a0a0>node: planning</>
-    <fg:#a0a0a0>observed UTC: 21:48:28</>
-    <fg:#a0a0a0>offset: +1ms</>
-    <fg:#a0a0a0>duration: 219ms</>
-    <fg:white>source: owned fixture</>
-    <fg:cyan,bold>payload:</>
-      <fg:white>{</>
-      <fg:cyan>  "attempt": 2,</>
+<fg:white,bold>Trace · 690ms</>                               <fg:cyan>┌details · planning*───────────────────────────────────┐</>
+<fg:#a0a0a0>Operation</>                                   <fg:cyan>│</><fg:#a0a0a0>node: planning</><fg:white>                                        </><fg:cyan>│</>
+<fg:#a0a0a0>  ▾ request 01a0a709  +0ns · 690ms</>          <fg:cyan>│</><fg:#a0a0a0>observed UTC: 21:48:28</><fg:white>                                </><fg:cyan>│</>
+<fg:#a0a0a0>    ▾ query  +0ns · 690ms</>                   <fg:cyan>│</><fg:#a0a0a0>offset: +1ms</><fg:white>                                          </><fg:cyan>│</>
+<fg:#a0a0a0>        admitted  +0ns</>                      <fg:cyan>│</><fg:#a0a0a0>duration: 219ms</><fg:white>                                       </><fg:cyan>│</>
+<fg:white,bold>        planning  +1ms · 219ms</>              <fg:cyan>│</><fg:white>source: owned fixture                                 </><fg:cyan>│</>
+<fg:green>        completed  +690ms</>                   <fg:cyan>│</><fg:cyan,bold>payload:</><fg:white>                                              </><fg:cyan>│</>
+<fg:#a0a0a0>    ▸ stage 0  +40ms · 260ms</>                <fg:cyan>│</><fg:white>{                                                     </><fg:cyan>│</>
+                                            <fg:cyan>│  "attempt": 2,</><fg:white>                                       </><fg:cyan>│</>
+                                            <fg:cyan>│  "ok": true</><fg:white>                                          </><fg:cyan>│</>
+                                            <fg:cyan>│</><fg:white>}                                                     </><fg:cyan>│</>
+                                            <fg:cyan>│</>~                                                     <fg:cyan>│</>
+                                            <fg:cyan>│</>~                                                     <fg:cyan>│</>
+                                            <fg:cyan>└──────────────────────────────────────────────────────┘</>

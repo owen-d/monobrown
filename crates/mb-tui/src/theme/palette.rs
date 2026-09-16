@@ -1,8 +1,8 @@
-//! Terminal palette detection.
+//! Terminal palette helpers.
 //!
-//! Queries the terminal background color at startup using the OSC 11
-//! escape sequence and caches the result. The detected color is used
-//! to determine whether the terminal has a light or dark background.
+//! Color lookups are side-effect-free by default. Terminal background
+//! detection is an explicit opt-in because OSC responses share the terminal's
+//! input stream with keyboard events.
 
 use std::sync::OnceLock;
 
@@ -10,8 +10,16 @@ use std::sync::OnceLock;
 /// `Some((r, g, b))` on success, `None` if the query failed or timed out.
 static DETECTED_BG: OnceLock<Option<(u8, u8, u8)>> = OnceLock::new();
 
-/// Returns the detected background RGB, or `None` if detection failed.
+/// Returns the background RGB from an earlier explicit detection, if available.
 pub fn default_bg() -> Option<(u8, u8, u8)> {
+    DETECTED_BG.get().copied().flatten()
+}
+
+/// Explicitly query and cache the terminal background color.
+///
+/// Callers must invoke this only after they own the terminal lifecycle. The
+/// OSC response travels over the same tty input stream as keyboard events.
+pub fn detect_terminal_background() -> Option<(u8, u8, u8)> {
     *DETECTED_BG.get_or_init(query_background_color)
 }
 
@@ -20,7 +28,8 @@ pub fn default_bg() -> Option<(u8, u8, u8)> {
 /// Light is defined as perceived luminance > 128 using the standard
 /// formula `Y = 0.299*R + 0.587*G + 0.114*B`.
 ///
-/// If the query fails, assumes dark (most terminals are dark).
+/// If no explicit detection has been performed, assumes dark (most terminals
+/// are dark).
 pub fn is_light() -> bool {
     match default_bg() {
         Some((r, g, b)) => luminance(r, g, b) > 128.0,
@@ -33,7 +42,8 @@ fn luminance(r: u8, g: u8, b: u8) -> f64 {
     0.299 * r as f64 + 0.587 * g as f64 + 0.114 * b as f64
 }
 
-/// Query the terminal background color via the OSC 11 escape sequence.
+/// Query the terminal background color via the OSC 11 escape sequence for the
+/// explicit [`detect_terminal_background`] path.
 ///
 /// Sends `ESC ] 11 ; ? ESC \` and parses the response, which looks like:
 /// `ESC ] 11 ; rgb:RRRR/GGGG/BBBB ESC \`
@@ -51,7 +61,7 @@ fn query_background_color() -> Option<(u8, u8, u8)> {
     }
 }
 
-/// Unix implementation of the OSC 11 background color query.
+/// Unix implementation of the explicit OSC 11 background color query.
 ///
 /// Opens `/dev/tty` directly so that this works even when stdout is
 /// redirected. Temporarily enables raw mode on the tty fd so that the

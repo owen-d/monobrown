@@ -2,24 +2,38 @@
 
 use chrono::{DateTime, Utc};
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Clear, Paragraph, Widget, Wrap};
 
 use super::data::{TraceItem, TraceTiming, TraceVisualRole};
 use super::state::{TraceSpan, TraceView};
-use crate::render::{Constraints, LayoutRenderable, Size, clip_text};
+use crate::render::{
+    Constraints, LayoutPagerView, LayoutRenderable, LayoutRenderableItem, Size, centered_rect,
+    clip_text, render_pane_frame,
+};
 use crate::theme;
 use crate::widget::flame_graph::RowKind;
+
+const MIN_FLAME_GRAPH_HEIGHT: u16 = 4;
+const MIN_STACKED_DETAILS_HEIGHT: u16 = 6;
+const MAX_STACKED_DETAILS_HEIGHT: u16 = 12;
+const MIN_SPLIT_GRAPH_WIDTH: u16 = 32;
+const MIN_SPLIT_DETAILS_WIDTH: u16 = 42;
+
+#[derive(Clone, Copy)]
+enum DetailsLayout {
+    Hidden,
+    Stacked { graph: Rect, details: Rect },
+    Split { graph: Rect, details: Rect },
+    Overlay(Rect),
+}
 
 impl LayoutRenderable for TraceView {
     fn measure(&self, constraints: Constraints) -> Size {
         let preferred = constraints.max_width.unwrap_or(120);
-        let details = if self.details_expanded() { 4 } else { 0 };
-        let rows = self
-            .visible_rows()
-            .len()
-            .saturating_add(details)
-            .saturating_add(2);
+        let rows = self.visible_rows().len().saturating_add(2);
         constraints.constrain(Size::new(preferred, rows.min(u16::MAX as usize) as u16))
     }
 
@@ -30,13 +44,17 @@ impl LayoutRenderable for TraceView {
 
 /// Render a trace with hierarchy on the y-axis and recorded time on the x-axis.
 pub fn render_trace_view(state: &TraceView, area: Rect, buf: &mut Buffer) {
-    render_inner(state, area, buf);
+    let layout = details_layout(area, state.details_expanded());
+    render_layout(state, layout, area, buf);
 }
 
 /// Render and update the navigation viewport used by keyboard scrolling.
 pub fn render_trace_view_mut(state: &mut TraceView, area: Rect, buf: &mut Buffer) {
-    state.set_viewport_height(area.height.saturating_sub(2));
-    render_inner(state, area, buf);
+    let layout = details_layout(area, state.details_expanded());
+    state.set_viewport_height(graph_area(layout, area).height.saturating_sub(2));
+    if let Some((offset, height)) = render_layout(state, layout, area, buf) {
+        state.set_details_viewport(offset, height);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -94,6 +112,79 @@ impl Columns {
     }
 }
 
+fn details_layout(area: Rect, details_expanded: bool) -> DetailsLayout {
+    if !details_expanded || area.width == 0 || area.height == 0 {
+        return DetailsLayout::Hidden;
+    }
+
+    if area.width >= MIN_SPLIT_GRAPH_WIDTH.saturating_add(MIN_SPLIT_DETAILS_WIDTH) {
+        let graph_width = ((u32::from(area.width) * 44) / 100) as u16;
+        let graph_width = graph_width.clamp(
+            MIN_SPLIT_GRAPH_WIDTH,
+            area.width.saturating_sub(MIN_SPLIT_DETAILS_WIDTH),
+        );
+        let split = Layout::horizontal([
+            Constraint::Length(graph_width),
+            Constraint::Min(MIN_SPLIT_DETAILS_WIDTH),
+        ])
+        .split(area);
+        return DetailsLayout::Split {
+            graph: split[0],
+            details: split[1],
+        };
+    }
+
+    if area.height > MIN_FLAME_GRAPH_HEIGHT + 3 {
+        let max_details = area.height.saturating_sub(MIN_FLAME_GRAPH_HEIGHT);
+        let details_height = (area.height / 3)
+            .clamp(MIN_STACKED_DETAILS_HEIGHT, MAX_STACKED_DETAILS_HEIGHT)
+            .min(max_details);
+        let split = Layout::vertical([
+            Constraint::Length(area.height.saturating_sub(details_height)),
+            Constraint::Length(details_height),
+        ])
+        .split(area);
+        return DetailsLayout::Stacked {
+            graph: split[0],
+            details: split[1],
+        };
+    }
+
+    DetailsLayout::Overlay(centered_rect(area, 92, 92))
+}
+
+fn graph_area(layout: DetailsLayout, area: Rect) -> Rect {
+    match layout {
+        DetailsLayout::Hidden | DetailsLayout::Overlay(_) => area,
+        DetailsLayout::Stacked { graph, .. } | DetailsLayout::Split { graph, .. } => graph,
+    }
+}
+
+fn render_layout(
+    state: &TraceView,
+    layout: DetailsLayout,
+    area: Rect,
+    buf: &mut Buffer,
+) -> Option<(usize, u16)> {
+    match layout {
+        DetailsLayout::Hidden => {
+            render_inner(state, area, buf);
+            None
+        }
+        DetailsLayout::Stacked { graph, details } | DetailsLayout::Split { graph, details } => {
+            render_inner(state, graph, buf);
+            render_details_pane(state, details, buf)
+        }
+        DetailsLayout::Overlay(details) => {
+            render_inner(state, area, buf);
+            if !details.is_empty() {
+                Widget::render(Clear, details, buf);
+            }
+            render_details_pane(state, details, buf)
+        }
+    }
+}
+
 fn render_inner(state: &TraceView, area: Rect, buf: &mut Buffer) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -131,9 +222,6 @@ fn render_inner(state: &TraceView, area: Rect, buf: &mut Buffer) {
             buf,
         );
         y += 1;
-        if state.details_expanded() && state.selected_span_id() == Some(span_id) {
-            y = draw_details(state, kind, y, area, buf);
-        }
     }
 }
 
@@ -340,16 +428,29 @@ fn trace_row(state: &TraceView, kind: TraceSpan) -> (String, TraceTiming, TraceV
     }
 }
 
-fn draw_details(
-    state: &TraceView,
-    kind: TraceSpan,
-    mut y: u16,
-    area: Rect,
-    buf: &mut Buffer,
-) -> u16 {
+fn render_details_pane(state: &TraceView, area: Rect, buf: &mut Buffer) -> Option<(usize, u16)> {
+    let span = state.selected_span_id()?;
+    let kind = state.trace_span(span)?;
+    let (label, _, _) = trace_row(state, kind);
+    let title = format!("details · {label}");
+    let inner = render_pane_frame(area, buf, &title, true)?;
+    if inner.width == 0 || inner.height == 0 {
+        return Some((0, 0));
+    }
+
+    let paragraph = Paragraph::new(detail_lines(state, kind))
+        .style(Style::default().fg(theme::text()))
+        .wrap(Wrap { trim: false });
+    let mut pager = LayoutPagerView::new(
+        vec![LayoutRenderableItem::Owned(Box::new(paragraph))],
+        state.details_scroll_offset(),
+    );
+    pager.render(inner, buf);
+    Some((pager.scroll_offset, inner.height))
+}
+
+fn detail_lines(state: &TraceView, kind: TraceSpan) -> Vec<Line<'static>> {
     let (label, timing, _) = trace_row(state, kind);
-    let indent = area.x + 4;
-    let width = area.right().saturating_sub(indent);
     let fields = [
         ("node", label),
         (
@@ -368,29 +469,20 @@ fn draw_details(
             timing_duration(timing).map_or_else(|| "unavailable".into(), format_duration),
         ),
     ];
-    for (name, value) in fields {
-        if y >= area.bottom() {
-            return y;
-        }
-        buf.set_string(
-            indent,
-            y,
-            clip_text(&format!("{name}: {value}"), usize::from(width)),
-            Style::default().fg(theme::dim()),
-        );
-        y += 1;
-    }
+    let mut lines = fields
+        .into_iter()
+        .map(|(name, value)| {
+            Line::from(Span::styled(
+                format!("{name}: {value}"),
+                Style::default().fg(theme::dim()),
+            ))
+        })
+        .collect::<Vec<_>>();
     for (name, value) in track_details(state, kind) {
-        if y >= area.bottom() {
-            break;
-        }
-        buf.set_string(
-            indent,
-            y,
-            clip_text(&format!("{name}: {value}"), usize::from(width)),
+        lines.push(Line::from(Span::styled(
+            format!("{name}: {value}"),
             Style::default().fg(theme::text()),
-        );
-        y += 1;
+        )));
     }
     if let TraceSpan::Item(id) = kind
         && let Some(item) = state
@@ -400,41 +492,28 @@ fn draw_details(
             .find_map(|track| find_item(&track.items, id))
     {
         for (name, value) in &item.details {
-            if y >= area.bottom() {
-                break;
-            }
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
-                buf.set_string(
-                    indent,
-                    y,
-                    clip_text(&format!("{name}:"), usize::from(width)),
+                lines.push(Line::from(Span::styled(
+                    format!("{name}:"),
                     Style::default()
                         .fg(theme::focus())
                         .add_modifier(Modifier::BOLD),
-                );
-                y += 1;
+                )));
                 for line in serde_json::to_string_pretty(&json)
                     .unwrap_or_else(|_| value.clone())
                     .lines()
                 {
-                    if y >= area.bottom() {
-                        break;
-                    }
-                    draw_json_detail_line(buf, indent + 2, y, width.saturating_sub(2), line);
-                    y += 1;
+                    lines.push(json_detail_line(line));
                 }
             } else {
-                buf.set_string(
-                    indent,
-                    y,
-                    clip_text(&format!("{name}: {value}"), usize::from(width)),
+                lines.push(Line::from(Span::styled(
+                    format!("{name}: {value}"),
                     Style::default().fg(theme::text()),
-                );
-                y += 1;
+                )));
             }
         }
     }
-    y
+    lines
 }
 
 fn find_item(items: &[TraceItem], id: super::data::ItemId) -> Option<&TraceItem> {
@@ -462,7 +541,7 @@ fn track_details(state: &TraceView, kind: TraceSpan) -> Vec<(String, String)> {
     track.map_or_else(Vec::new, |track| track.details.clone())
 }
 
-fn draw_json_detail_line(buf: &mut Buffer, x: u16, y: u16, width: u16, line: &str) {
+fn json_detail_line(line: &str) -> Line<'static> {
     let trimmed = line.trim_start();
     let color = if trimmed.starts_with('"') {
         theme::focus()
@@ -471,12 +550,7 @@ fn draw_json_detail_line(buf: &mut Buffer, x: u16, y: u16, width: u16, line: &st
     } else {
         theme::text()
     };
-    buf.set_string(
-        x,
-        y,
-        clip_text(line, usize::from(width)),
-        Style::default().fg(color),
-    );
+    Line::from(Span::styled(line.to_owned(), Style::default().fg(color)))
 }
 
 fn draw_timing(
