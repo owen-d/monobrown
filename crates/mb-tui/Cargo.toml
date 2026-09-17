@@ -20,6 +20,7 @@ serde_json.workspace = true
 similar = { workspace = true, optional = true }
 syntect = { workspace = true }
 two-face = { workspace = true }
+termwiz.workspace = true
 unicode-width.workspace = true
 
 [target.'cfg(unix)'.dependencies]

@@ -10,6 +10,46 @@ use std::collections::HashSet;
 
 use super::{CachedFlatEntry, FlatNode, NodeId, TreeNode, build_flat_cache, find_node_by_id};
 
+/// Shared hierarchy navigation policies used by flame and trace views.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorNavigation {
+    PreserveExpansion,
+    #[default]
+    FollowSelection,
+}
+
+/// Behavior when focus is exited through `h`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FocusNavigation {
+    #[default]
+    CollapseParent,
+    PreserveParent,
+}
+
+/// Whether a synthetic root is visible in the row list.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RootVisibility {
+    #[default]
+    Visible,
+    Hidden,
+}
+
+/// Vertical movement policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VerticalNavigation {
+    #[default]
+    VisibleRows,
+    Siblings,
+}
+
+/// Whether disclosure changes animate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TransitionMode {
+    #[default]
+    Animated,
+    Immediate,
+}
+
 // ---------------------------------------------------------------------------
 // TreeState
 // ---------------------------------------------------------------------------

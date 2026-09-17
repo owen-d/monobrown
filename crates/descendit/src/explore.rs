@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -783,9 +783,7 @@ fn run_tui<Init>(init: Init) -> anyhow::Result<()>
 where
     Init: FnOnce() -> anyhow::Result<ExploreApp>,
 {
-    TuiSession::run(init, |session, mut app| {
-        event_loop(session.terminal(), &mut app)
-    })
+    TuiSession::run(init, |session, mut app| event_loop(session, &mut app))
 }
 
 // ---------------------------------------------------------------------------
@@ -1024,10 +1022,7 @@ fn step_key(app: &mut ExploreApp, key: &KeyEvent) -> RenderStep<ExploreAction> {
     }
 }
 
-fn event_loop(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut ExploreApp,
-) -> anyhow::Result<()> {
+fn event_loop(session: &mut TuiSession, app: &mut ExploreApp) -> anyhow::Result<()> {
     let mut last_tick = Instant::now();
     let mut scheduler = RenderScheduler::new(last_tick);
     scheduler.schedule_render_now(last_tick);
@@ -1046,7 +1041,7 @@ fn event_loop(
             }
             last_tick = now;
 
-            draw(terminal, app)?;
+            draw(session.terminal(), app)?;
             scheduler.record_render(now);
         }
 
@@ -1059,8 +1054,8 @@ fn event_loop(
                 Duration::from_secs(60)
             });
 
-        if event::poll(timeout)?
-            && let Event::Key(key) = event::read()?
+        if session.poll_event(timeout)?
+            && let Event::Key(key) = session.read_event()?
         {
             if key.kind != KeyEventKind::Press {
                 continue;

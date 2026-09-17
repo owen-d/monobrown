@@ -1382,6 +1382,7 @@ dependencies = [
  "serde_json",
  "similar",
  "syntect",
+ "termwiz",
  "two-face",
  "unicode-width",
 ]

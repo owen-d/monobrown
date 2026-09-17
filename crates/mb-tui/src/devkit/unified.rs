@@ -7,7 +7,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -656,12 +656,12 @@ where
             }
             Ok(entries)
         },
-        |session, entries| unified_loop(session.terminal(), entries),
+        |session, entries| unified_loop(session, entries),
     )
 }
 
 fn unified_loop(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    session: &mut TuiSession,
     mut entries: Vec<Box<dyn CatalogEntry>>,
 ) -> io::Result<()> {
     let mut active: usize = 0;
@@ -682,7 +682,7 @@ fn unified_loop(
                 }
             }
 
-            draw_unified(terminal, &entries, active, show_help)?;
+            draw_unified(session.terminal(), &entries, active, show_help)?;
             scheduler.record_render(now);
         }
 
@@ -690,11 +690,11 @@ fn unified_loop(
             .time_until_next_render(Instant::now(), animate)
             .unwrap_or(Duration::from_secs(60));
 
-        if !event::poll(timeout)? {
+        if !session.poll_event(timeout)? {
             continue;
         }
 
-        let event = event::read()?;
+        let event = session.read_event()?;
         let Event::Key(key) = event else {
             continue;
         };

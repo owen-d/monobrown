@@ -1,38 +1,47 @@
 //! Shared ownership of an interactive terminal session.
 //!
 //! A [`TuiSession`] establishes the terminal boundary before a consumer
-//! constructs theme-dependent state, then restores the terminal on every
-//! ordinary return and unwind path. Rendering and event-loop semantics remain
-//! owned by the consumer.
+//! constructs theme-dependent state, performs the optional palette probe while
+//! it owns terminal input, then restores the terminal on every ordinary return
+//! and unwind path.
 
+use std::collections::VecDeque;
 use std::io::{self, IsTerminal};
+use std::time::Duration;
 
 use crossterm::ExecutableCommand;
 use crossterm::cursor::Show;
+use crossterm::event::{self, Event};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+mod input;
+/// Optional terminal-owned palette probing.
+pub mod palette;
+
 /// A live terminal session shared by interactive Monobrown consumers.
 ///
 /// Construction enters raw mode and the alternate screen, clears the initial
-/// frame, and returns a session whose terminal can be borrowed by the caller.
-/// Dropping the session best-effort restores the terminal even when the
-/// consumer returns an error or unwinds. Only one top-level session may be
-/// active at a time; nested or concurrent sessions would manipulate the same
-/// process terminal state.
+/// frame, probes the terminal palette, and returns a session whose terminal
+/// and input can be borrowed by the caller. Dropping the session best-effort
+/// restores the terminal even when the consumer returns an error or unwinds.
+/// Only one top-level session may be active at a time; nested or concurrent
+/// sessions would manipulate the same process terminal state.
 pub struct TuiSession {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    pending_events: VecDeque<Event>,
     _restore: TerminalRestore,
 }
 
 impl TuiSession {
     /// Run a consumer inside an owned terminal session.
     ///
-    /// The initializer runs after terminal setup so theme-dependent state is
-    /// not constructed before the terminal lifecycle is established. Both
-    /// callbacks share the caller's error type; terminal errors are converted
-    /// through `From<io::Error>`.
+    /// The initializer runs after terminal setup and palette detection so
+    /// theme-dependent state observes the active terminal. Consumers should
+    /// use [`Self::poll_event`] and [`Self::read_event`] rather than reading
+    /// crossterm directly. Both callbacks share the caller's error type;
+    /// terminal errors are converted through `From<io::Error>`.
     pub fn run<State, Error, Init, Body>(init: Init, body: Body) -> Result<(), Error>
     where
         Error: From<io::Error>,
@@ -61,15 +70,43 @@ impl TuiSession {
         let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
 
-        Ok(Self {
+        let mut session = Self {
             terminal,
+            pending_events: VecDeque::new(),
             _restore: restore,
-        })
+        };
+
+        // The session is the sole owner of terminal input during startup. The
+        // probe demultiplexes the OSC response from any keys typed while it is
+        // waiting, so the normal crossterm reader never sees probe bytes.
+        let probe = palette::probe_background();
+        session.pending_events.extend(probe.pending_events);
+        if let Some(palette) = probe.palette {
+            crate::theme::palette::set(palette);
+        }
+
+        Ok(session)
     }
 
     /// Borrow the Ratatui terminal for consumer rendering and event handling.
     pub fn terminal(&mut self) -> &mut Terminal<CrosstermBackend<io::Stdout>> {
         &mut self.terminal
+    }
+
+    /// Poll for the next input event, including events buffered during startup.
+    pub fn poll_event(&mut self, timeout: Duration) -> io::Result<bool> {
+        if !self.pending_events.is_empty() {
+            return Ok(true);
+        }
+        event::poll(timeout)
+    }
+
+    /// Read the next input event, draining startup input before the tty.
+    pub fn read_event(&mut self) -> io::Result<Event> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Ok(event);
+        }
+        event::read()
     }
 }
 

@@ -11,7 +11,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -422,7 +422,7 @@ where
             }
             Ok(catalog)
         },
-        |session, catalog| run_loop(session.terminal(), &catalog),
+        |session, catalog| run_loop(session, &catalog),
     )
 }
 
@@ -431,7 +431,7 @@ where
 // ---------------------------------------------------------------------------
 
 fn run_loop<S: Clone>(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    session: &mut TuiSession,
     catalog: &ScenarioCatalog<S>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut ctrl = PlaygroundController::new(catalog);
@@ -442,7 +442,7 @@ fn run_loop<S: Clone>(
     loop {
         let now = Instant::now();
         if scheduler.should_render(now, false) {
-            draw(terminal, &ctrl)?;
+            draw(session.terminal(), &ctrl)?;
             scheduler.record_render(now);
         }
 
@@ -450,11 +450,11 @@ fn run_loop<S: Clone>(
             .time_until_next_render(Instant::now(), false)
             .unwrap_or(Duration::from_secs(60));
 
-        if !event::poll(timeout)? {
+        if !session.poll_event(timeout)? {
             continue;
         }
 
-        let event = event::read()?;
+        let event = session.read_event()?;
         if let Event::Key(key) = event {
             if key.kind != KeyEventKind::Press {
                 continue;
@@ -629,15 +629,7 @@ where
     TuiSession::run(
         || Ok::<_, io::Error>(init()),
         |session, state| {
-            run_animated_loop_inner(
-                session.terminal(),
-                state,
-                title,
-                render_fn,
-                tick,
-                apply,
-                step_size,
-            )
+            run_animated_loop_inner(session, state, title, render_fn, tick, apply, step_size)
         },
     )
 }
@@ -701,7 +693,7 @@ fn draw_animated_inner<S>(
 }
 
 fn run_animated_loop_inner<S>(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    session: &mut TuiSession,
     mut state: S,
     title: &str,
     render_fn: fn(&S, Rect, &mut Buffer),
@@ -725,7 +717,14 @@ fn run_animated_loop_inner<S>(
                 tick(&mut state, dt);
             }
 
-            draw_animated_inner(terminal, &state, title, paused, interactive, render_fn)?;
+            draw_animated_inner(
+                session.terminal(),
+                &state,
+                title,
+                paused,
+                interactive,
+                render_fn,
+            )?;
             scheduler.record_render(now);
         }
 
@@ -733,8 +732,8 @@ fn run_animated_loop_inner<S>(
             .time_until_next_render(Instant::now(), animate)
             .unwrap_or(Duration::from_secs(60));
 
-        if event::poll(timeout)?
-            && let Event::Key(key) = event::read()?
+        if session.poll_event(timeout)?
+            && let Event::Key(key) = session.read_event()?
         {
             if key.kind != KeyEventKind::Press {
                 continue;

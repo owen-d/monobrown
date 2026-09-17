@@ -7,6 +7,9 @@ use super::data::{SpanId, SpanNode};
 use super::layout::{FlameRow, RowKind};
 use super::render::BarStyle;
 use crate::input::KeyResult;
+pub use crate::tree::state::{
+    CursorNavigation, FocusNavigation, RootVisibility, TransitionMode, VerticalNavigation,
+};
 
 const DECAY_TIME_CONSTANTS: f64 = 5.0;
 const SNAP_EPSILON: f64 = 0.001;
@@ -31,57 +34,15 @@ pub struct ExpandAnimation {
 /// the same path as their expansion route while moving the cursor within it.
 const UNDO_LIMIT: usize = 32;
 
-/// Whether vertical cursor navigation follows the selected node's ancestry.
-///
-/// Descendit keeps the historical follow-selection behavior, while other
-/// tree views can preserve their disclosure state and make hierarchy changes
-/// explicit through `h`/`l`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum CursorNavigation {
-    PreserveExpansion,
-    #[default]
-    FollowSelection,
-}
+/* CursorNavigation is shared from tree::state. */
 
-/// Behavior when `h` exits focus from the focused node.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum FocusNavigation {
-    /// Restore the historical behavior and collapse the focused node's parent.
-    #[default]
-    CollapseParent,
-    /// Return to the full tree while retaining the parent's disclosure state.
-    PreserveParent,
-}
+/* FocusNavigation is shared from tree::state. */
 
-/// Whether the synthetic root is rendered as a navigable row.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum RootVisibility {
-    /// Render and navigate the root row.
-    #[default]
-    Visible,
-    /// Keep the root structural-only and render its children at depth zero.
-    Hidden,
-}
+/* RootVisibility is shared from tree::state. */
 
-/// Vertical cursor movement policy.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum VerticalNavigation {
-    /// Move through the visible preorder rows (Descendit's behavior).
-    #[default]
-    VisibleRows,
-    /// Move only among the selected span's direct siblings.
-    Siblings,
-}
+/* VerticalNavigation is shared from tree::state. */
 
-/// Whether disclosure changes animate or take effect synchronously.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TransitionMode {
-    /// Animate expand/collapse transitions.
-    #[default]
-    Animated,
-    /// Apply disclosure changes immediately without idle redraws.
-    Immediate,
-}
+/* TransitionMode is shared from tree::state. */
 
 #[derive(Clone, Copy)]
 enum MarkAction {
