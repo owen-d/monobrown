@@ -1,18 +1,20 @@
 //! Optional terminal-owned OSC 11 palette detection.
 //!
-//! [`probe_background`] is only called by [`super::TuiSession`], after raw
-//! mode is enabled and before the normal crossterm event loop starts. The
-//! probe and keyboard input therefore have one reader and cannot race. Bytes
-//! that arrive while the terminal replies are buffered as regular events.
+//! Termina owns the input stream while the probe is active. Protocol responses
+//! are filtered from the same event queue as keyboard input, so keys arriving
+//! during startup remain available to the normal event loop.
 
 use std::time::Duration;
+
+use termina::escape::{
+    csi::{Csi, Device},
+    osc::{ColorOrQuery, DynamicColorNumber, Osc},
+};
+use termina::event::Event as TerminaEvent;
 
 #[cfg(unix)]
 use super::input::InputReader;
 
-// Pair optional OSC 11 with primary device attributes. Terminal emulators
-// and multiplexers preserve response FIFO order.
-const QUERY: &[u8] = b"\x1b]11;?\x1b\\\x1b[c";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Result of the startup probe and the parser that owns the tty afterward.
@@ -25,16 +27,16 @@ pub(crate) struct ProbeResult {
 }
 
 /// Detect the terminal background through OSC 11 on Unix.
-///
-/// This compatibility helper returns only the detected RGB value. Interactive
-/// sessions should use [`super::TuiSession`], which also preserves startup
-/// input through the internal demultiplexer.
 pub fn detect_background() -> Option<(u8, u8, u8)> {
     probe_background().rgb
 }
 
 /// Parse an OSC 11 response into an RGB tuple.
+///
+/// This remains available for callers that already have a raw response. New
+/// terminal code should prefer Termina's typed `ColorOrQuery::Color` value.
 pub fn parse_response(response: &[u8]) -> Option<(u8, u8, u8)> {
+    let response = response.strip_suffix(&[0x9c]).unwrap_or(response);
     let text = std::str::from_utf8(response).ok()?;
     let start = text.to_ascii_lowercase().find("rgb:")?;
     let part = text[start + 4..]
@@ -78,26 +80,44 @@ fn probe_background_unix() -> ProbeResult {
         Err(_) => return ProbeResult::default(),
     };
 
-    if input.write_all(QUERY).is_err() {
-        return ProbeResult::default();
+    if input.write_all(&super::input::probe_query()).is_err() {
+        return ProbeResult {
+            input: Some(input),
+            ..ProbeResult::default()
+        };
     }
 
     let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
+    let mut rgb = None;
+    let mut device_attributes = false;
 
-    while !input.device_attributes() {
+    while !(device_attributes && rgb.is_some()) {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-        if remaining.is_zero() {
+        if remaining.is_zero() || !input.poll_probe_event(remaining).unwrap_or(false) {
             break;
         }
-        if input.poll_read(remaining).is_err() {
+
+        let Ok(event) = input.read_probe_event() else {
             break;
+        };
+        match event {
+            TerminaEvent::Osc(Osc::ChangeDynamicColors(
+                DynamicColorNumber::TextBackgroundColor,
+                colors,
+            )) => {
+                if let Some(ColorOrQuery::Color(color)) = colors.first() {
+                    rgb = Some((color.red, color.green, color.blue));
+                }
+            }
+            TerminaEvent::Csi(Csi::Device(Device::DeviceAttributes(()))) => {
+                device_attributes = true;
+            }
+            _ => {}
         }
     }
 
-    let rgb = input.response().and_then(parse_response);
     let palette =
         rgb.map(|(red, green, blue)| crate::theme::palette::Palette::from_rgb(red, green, blue));
-
     ProbeResult {
         rgb,
         palette,
@@ -122,6 +142,14 @@ mod tests {
         assert_eq!(
             parse_response(b"\x1b]11;rgb:ff/ff/ff\x1b\\"),
             Some((255, 255, 255))
+        );
+    }
+
+    #[test]
+    fn parses_c1_string_terminator_response() {
+        assert_eq!(
+            parse_response(b"\x1b]11;rgb:2c2c/3434/3c3c\x9c"),
+            Some((0x2c, 0x34, 0x3c))
         );
     }
 }

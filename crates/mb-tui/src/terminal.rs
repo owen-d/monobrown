@@ -2,8 +2,8 @@
 //!
 //! A [`TuiSession`] establishes the terminal boundary before a consumer
 //! constructs theme-dependent state, performs the optional palette probe while
-//! it owns terminal input, then restores the terminal on every ordinary return
-//! and unwind path.
+//! Termina owns terminal input, then restores the terminal on every ordinary
+//! return and unwind path.
 
 use std::io::{self, IsTerminal};
 use std::time::Duration;
@@ -11,7 +11,7 @@ use std::time::Duration;
 use crossterm::ExecutableCommand;
 use crossterm::cursor::Show;
 use crossterm::event::{self, Event};
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
@@ -64,15 +64,28 @@ impl TuiSession {
             ));
         }
 
+        #[cfg(not(unix))]
         terminal::enable_raw_mode()?;
         let restore = TerminalRestore;
         let mut stdout = io::stdout();
         stdout.execute(EnterAlternateScreen)?;
+        // Ratatui's `Terminal::clear` preserves the cursor by querying its
+        // position (`ESC[6n`). Input is owned by Termina at this boundary, so
+        // that response is not available to Ratatui/Crossterm. The alternate
+        // screen is already isolated; clear it directly before constructing
+        // Ratatui instead of introducing a startup query that can time out.
+        stdout.execute(Clear(ClearType::All))?;
         let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend)?;
-        terminal.clear()?;
+        let terminal = Terminal::new(backend)?;
 
         let probe = palette::probe_background();
+
+        #[cfg(unix)]
+        if probe.input.is_none() {
+            // Termina could not open the process tty. Preserve the old
+            // crossterm fallback rather than making palette detection fatal.
+            terminal::enable_raw_mode()?;
+        }
 
         let session = Self {
             terminal,

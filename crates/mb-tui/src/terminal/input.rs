@@ -1,56 +1,59 @@
-//! Terminal input demultiplexing for capability probes and keyboard input.
+//! Terminal input through Termina's typed VT parser.
 //!
-//! Terminal replies and keyboard input share one byte stream. [`InputDemux`]
-//! removes terminal capability replies while decoding all other bytes into
-//! crossterm events. It is deliberately independent of file descriptors so
-//! its framing behavior can be tested without a tty.
+//! Termina owns the byte-level escape-sequence parser and produces typed key,
+//! mouse, resize, paste, OSC, and CSI events. This module owns only the tty
+//! read loop, event queue, and adapter to the crossterm event type used by
+//! existing consumers. C1 string termination is normalized at the byte
+//! boundary because the current Termina parser accepts BEL and 7-bit ST only.
 
 use std::collections::VecDeque;
+use std::io;
+use std::time::Duration;
+
 #[cfg(unix)]
 use std::fs::OpenOptions;
-use std::io;
 #[cfg(unix)]
 use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::fd::AsRawFd;
-use std::time::Duration;
 
 use crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent,
     MouseEventKind,
 };
-use termwiz::input::{InputEvent, InputParser, KeyCode as TermKeyCode, Modifiers};
+use crossterm::terminal;
+use termina::Parser;
+use termina::escape::{
+    csi::{Csi, Device},
+    osc::{ColorOrQuery, DynamicColorNumber, Osc},
+};
+use termina::event::{
+    Event as TerminaEvent, KeyCode as TerminaKeyCode, KeyEventKind as TerminaKeyEventKind,
+    Modifiers as TerminaModifiers, MouseButton as TerminaMouseButton,
+    MouseEventKind as TerminaMouseEventKind,
+};
 
-const MAX_CONTROL_SEQUENCE: usize = 128;
-
-#[cfg(unix)]
 const READ_BUFFER_SIZE: usize = 256;
 
-/// Input collected while a terminal capability probe is in flight.
-#[derive(Debug)]
-pub(crate) struct InputDemux {
-    parser: InputParser,
-    candidate: Vec<u8>,
-    events: VecDeque<Event>,
-    response: Option<Vec<u8>>,
-    device_attributes: bool,
-}
-
-/// Sole owner of the tty input stream for an interactive session.
+/// Sole owner of the terminal input stream for an interactive session.
 #[cfg(unix)]
 #[derive(Debug)]
 pub(crate) struct InputReader {
     tty: std::fs::File,
-    demux: InputDemux,
+    parser: Parser,
+    events: VecDeque<TerminaEvent>,
     buffer: [u8; READ_BUFFER_SIZE],
 }
 
 #[cfg(unix)]
 impl InputReader {
     pub(crate) fn open() -> io::Result<Self> {
+        let tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
+        terminal::enable_raw_mode()?;
         Ok(Self {
-            tty: OpenOptions::new().read(true).write(true).open("/dev/tty")?,
-            demux: InputDemux::new(),
+            tty,
+            parser: Parser::default(),
+            events: VecDeque::new(),
             buffer: [0; READ_BUFFER_SIZE],
         })
     }
@@ -60,414 +63,301 @@ impl InputReader {
         self.tty.flush()
     }
 
-    pub(crate) fn response(&self) -> Option<&[u8]> {
-        self.demux.response()
-    }
-
-    pub(crate) fn device_attributes(&self) -> bool {
-        self.demux.device_attributes()
-    }
-
     pub(crate) fn poll_event(&mut self, timeout: Duration) -> io::Result<bool> {
-        if self.demux.has_events() {
+        self.poll_matching(timeout, is_user_event)
+    }
+
+    pub(crate) fn read_event(&mut self) -> io::Result<Event> {
+        loop {
+            if let Some(event) = self
+                .take_matching(is_user_event)
+                .and_then(|event| to_crossterm(&event))
+            {
+                return Ok(event);
+            }
+            self.read_from_tty(None)?;
+        }
+    }
+
+    pub(crate) fn poll_probe_event(&mut self, timeout: Duration) -> io::Result<bool> {
+        self.poll_matching(timeout, is_probe_event)
+    }
+
+    pub(crate) fn read_probe_event(&mut self) -> io::Result<TerminaEvent> {
+        loop {
+            if let Some(event) = self.take_matching(is_probe_event) {
+                return Ok(event);
+            }
+            self.read_from_tty(None)?;
+        }
+    }
+
+    fn poll_matching(
+        &mut self,
+        timeout: Duration,
+        predicate: fn(&TerminaEvent) -> bool,
+    ) -> io::Result<bool> {
+        if self.events.iter().any(predicate) {
             return Ok(true);
         }
+
         let deadline = std::time::Instant::now() + timeout;
         loop {
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
             if remaining.is_zero() {
                 return Ok(false);
             }
-            let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
-            let mut poll_fd = libc::pollfd {
-                fd: self.tty.as_raw_fd(),
-                events: libc::POLLIN,
-                revents: 0,
-            };
-            // SAFETY: `poll_fd` points to one valid tty descriptor and the
-            // timeout is bounded. No memory is retained by libc after call.
-            let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
-            if ready < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            if ready == 0 || (poll_fd.revents & libc::POLLIN) == 0 {
-                return Ok(false);
-            }
-            let read = self.tty.read(&mut self.buffer)?;
-            if read == 0 {
-                return Ok(false);
-            }
-            self.demux.feed(&self.buffer[..read]);
-            if self.demux.has_events() {
+            self.read_from_tty(Some(remaining))?;
+            if self.events.iter().any(predicate) {
                 return Ok(true);
             }
         }
     }
 
-    pub(crate) fn read_event(&mut self) -> io::Result<Event> {
-        loop {
-            if let Some(event) = self.demux.pop_event() {
-                return Ok(event);
-            }
-            let read = self.tty.read(&mut self.buffer)?;
-            if read == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "terminal input reached EOF",
-                ));
-            }
-            self.demux.feed(&self.buffer[..read]);
-        }
-    }
-
-    pub(crate) fn poll_read(&mut self, timeout: Duration) -> io::Result<bool> {
-        let timeout_ms = timeout.as_millis().min(i32::MAX as u128) as i32;
-        let mut poll_fd = libc::pollfd {
-            fd: self.tty.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        // SAFETY: `poll_fd` points to one valid tty descriptor and the
-        // timeout is bounded. No memory is retained by libc after call.
-        let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
-        if ready < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        if ready == 0 || (poll_fd.revents & libc::POLLIN) == 0 {
-            return Ok(false);
+    fn read_from_tty(&mut self, timeout: Option<Duration>) -> io::Result<()> {
+        if !wait_for_input(self.tty.as_raw_fd(), timeout)? {
+            return Ok(());
         }
         let read = self.tty.read(&mut self.buffer)?;
         if read == 0 {
-            return Ok(false);
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "terminal input reached EOF",
+            ));
         }
-        self.demux.feed(&self.buffer[..read]);
-        Ok(true)
-    }
-}
-
-impl Default for InputDemux {
-    fn default() -> Self {
-        Self {
-            parser: InputParser::new(),
-            candidate: Vec::new(),
-            events: VecDeque::new(),
-            response: None,
-            device_attributes: false,
-        }
-    }
-}
-
-impl InputDemux {
-    pub(crate) fn new() -> Self {
-        Self::default()
+        self.feed(&self.buffer[..read].to_vec());
+        Ok(())
     }
 
-    /// Feed bytes read from the tty into the probe/input demultiplexer.
-    pub(crate) fn feed(&mut self, bytes: &[u8]) {
+    fn feed(&mut self, bytes: &[u8]) {
+        // Termina currently accepts BEL and 7-bit ST for OSC strings. C1 ST
+        // is the same protocol terminator and must not strand the parser.
+        let mut normalized = Vec::with_capacity(bytes.len());
         for &byte in bytes {
-            self.feed_byte(byte);
-        }
-    }
-
-    /// Flush a partial keyboard sequence at the end of a read batch.
-    #[cfg(test)]
-    pub(crate) fn finish(&mut self) {
-        // Never replay an incomplete capability response. termwiz quite
-        // reasonably ignores the control prefix but can expose its payload
-        // as ordinary text, which then appears as phantom keyboard input.
-        if self.collecting_probe_response() || self.collecting_device_attributes() {
-            self.candidate.clear();
-        } else {
-            self.flush_candidate();
-        }
-        let mut events = Vec::new();
-        self.parser.parse(&[], |event| events.push(event), false);
-        for event in events {
-            self.push_event(event);
-        }
-    }
-
-    pub(crate) fn response(&self) -> Option<&[u8]> {
-        self.response.as_deref()
-    }
-
-    pub(crate) fn device_attributes(&self) -> bool {
-        self.device_attributes
-    }
-
-    /// Whether an OSC 11 response has started but not terminated.
-    #[cfg(test)]
-    pub(crate) fn collecting_probe_response(&self) -> bool {
-        self.response.is_none() && self.candidate.starts_with(b"\x1b]11;")
-    }
-
-    #[cfg(test)]
-    fn collecting_device_attributes(&self) -> bool {
-        self.candidate.starts_with(b"\x1b[") && !self.device_attributes
-    }
-
-    #[cfg(test)]
-    pub(crate) fn into_events(self) -> Vec<Event> {
-        self.events.into_iter().collect()
-    }
-
-    pub(crate) fn has_events(&self) -> bool {
-        !self.events.is_empty()
-    }
-
-    pub(crate) fn pop_event(&mut self) -> Option<Event> {
-        self.events.pop_front()
-    }
-
-    fn feed_byte(&mut self, byte: u8) {
-        if self.candidate.is_empty() {
-            if byte == 0x1b {
-                self.candidate.push(byte);
+            if byte == 0x9c {
+                normalized.extend_from_slice(b"\x1b\\");
             } else {
-                self.feed_keyboard(&[byte]);
+                normalized.push(byte);
             }
-            return;
         }
-
-        self.candidate.push(byte);
-
-        if self.candidate == [0x1b, b']'] || self.candidate == [0x1b, b'['] {
-            return;
-        }
-
-        if self.candidate.len() == 2 {
-            self.flush_candidate();
-            return;
-        }
-
-        if self.candidate.starts_with(b"\x1b]11;") {
-            let len = self.candidate.len();
-            if byte == 0x07 || (len >= 2 && self.candidate[len - 2..] == [0x1b, b'\\']) {
-                self.response = Some(std::mem::take(&mut self.candidate));
-            } else if len > MAX_CONTROL_SEQUENCE {
-                self.candidate.clear();
-            }
-            return;
-        }
-
-        if self.candidate.starts_with(b"\x1b[") {
-            if byte == b'c'
-                && self.candidate.len() >= 3
-                && (self.candidate[2] == b'?' || self.candidate[2].is_ascii_digit())
-            {
-                self.device_attributes = true;
-                self.candidate.clear();
-            } else if (0x40..=0x7e).contains(&byte) {
-                // CSI responses such as the cursor-position reply (`R`)
-                // are complete control sequences too. Only DA is a probe
-                // response; every other final byte must return to the
-                // keyboard parser instead of leaving the candidate open.
-                self.flush_candidate();
-            } else if self.candidate.len() > MAX_CONTROL_SEQUENCE {
-                self.flush_candidate();
-            }
-            return;
-        }
-
-        // This was an OSC sequence, but not the background-color reply. Keep
-        // collecting until its terminator so it can be replayed as input.
-        let len = self.candidate.len();
-        if byte == 0x07 || (len >= 2 && self.candidate[len - 2..] == [0x1b, b'\\']) {
-            self.flush_candidate();
-        } else if len > MAX_CONTROL_SEQUENCE {
-            self.flush_candidate();
-        }
-    }
-
-    fn flush_candidate(&mut self) {
-        if self.candidate.is_empty() {
-            return;
-        }
-        let bytes = std::mem::take(&mut self.candidate);
-        self.feed_keyboard(&bytes);
-    }
-
-    fn feed_keyboard(&mut self, bytes: &[u8]) {
-        let mut events = Vec::new();
-        self.parser.parse(bytes, |event| events.push(event), true);
-        for event in events {
-            self.push_event(event);
-        }
-    }
-
-    fn push_event(&mut self, event: InputEvent) {
-        if let Some(event) = to_crossterm(event) {
+        self.parser.parse(&normalized, true);
+        while let Some(event) = self.parser.pop() {
             self.events.push_back(event);
         }
     }
-}
 
-fn to_crossterm(event: InputEvent) -> Option<Event> {
-    match event {
-        InputEvent::Key(key) => Some(Event::Key(KeyEvent {
-            code: key_code(key.key)?,
-            modifiers: modifiers(key.modifiers),
-            kind: KeyEventKind::Press,
-            state: KeyEventState::NONE,
-        })),
-        InputEvent::Resized { cols, rows } => {
-            Some(Event::Resize(cols.try_into().ok()?, rows.try_into().ok()?))
-        }
-        InputEvent::Mouse(mouse) => Some(Event::Mouse(MouseEvent {
-            kind: mouse_kind(mouse.mouse_buttons),
-            column: mouse.x,
-            row: mouse.y,
-            modifiers: modifiers(mouse.modifiers),
-        })),
-        InputEvent::Paste(text) => Some(Event::Paste(text)),
-        InputEvent::PixelMouse(_) | InputEvent::Wake => None,
+    fn take_matching(&mut self, predicate: fn(&TerminaEvent) -> bool) -> Option<TerminaEvent> {
+        let index = self.events.iter().position(predicate)?;
+        self.events.remove(index)
     }
 }
 
-fn key_code(code: TermKeyCode) -> Option<KeyCode> {
+#[cfg(unix)]
+fn wait_for_input(fd: i32, timeout: Option<Duration>) -> io::Result<bool> {
+    let mut readfds = unsafe { std::mem::zeroed::<libc::fd_set>() };
+    // SAFETY: `readfds` is local storage and `fd` is an open tty descriptor.
+    unsafe {
+        libc::FD_SET(fd, &mut readfds);
+    }
+
+    let mut time = timeout.map(|duration| libc::timeval {
+        tv_sec: duration.as_secs().min(libc::time_t::MAX as u64) as libc::time_t,
+        tv_usec: duration.subsec_micros() as libc::suseconds_t,
+    });
+    let time_ptr = time
+        .as_mut()
+        .map_or(std::ptr::null_mut(), |time| time as *mut libc::timeval);
+    // SAFETY: all pointers refer to local storage for the duration of the call;
+    // libc retains none of them after `select` returns.
+    let ready = unsafe {
+        libc::select(
+            fd + 1,
+            &mut readfds,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            time_ptr,
+        )
+    };
+    if ready < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(ready > 0)
+}
+
+#[cfg(unix)]
+impl Drop for InputReader {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+    }
+}
+
+fn is_user_event(event: &TerminaEvent) -> bool {
+    to_crossterm(event).is_some()
+}
+
+fn is_probe_event(event: &TerminaEvent) -> bool {
+    matches!(
+        event,
+        TerminaEvent::Osc(Osc::ChangeDynamicColors(_, _))
+            | TerminaEvent::Csi(Csi::Device(Device::DeviceAttributes(())))
+    )
+}
+
+fn to_crossterm(event: &TerminaEvent) -> Option<Event> {
+    match event {
+        TerminaEvent::Key(key) if key.kind == TerminaKeyEventKind::Press => {
+            Some(Event::Key(KeyEvent {
+                code: key_code(key.code)?,
+                modifiers: modifiers(key.modifiers),
+                kind: KeyEventKind::Press,
+                state: KeyEventState::NONE,
+            }))
+        }
+        TerminaEvent::Mouse(mouse) => Some(Event::Mouse(MouseEvent {
+            kind: mouse_kind(mouse.kind),
+            column: mouse.column,
+            row: mouse.row,
+            modifiers: modifiers(mouse.modifiers),
+        })),
+        TerminaEvent::WindowResized(size) => Some(Event::Resize(size.cols, size.rows)),
+        TerminaEvent::Paste(text) => Some(Event::Paste(text.clone())),
+        _ => None,
+    }
+}
+
+fn key_code(code: TerminaKeyCode) -> Option<KeyCode> {
     Some(match code {
-        TermKeyCode::Char(value) => KeyCode::Char(value),
-        TermKeyCode::Backspace => KeyCode::Backspace,
-        TermKeyCode::Tab => KeyCode::Tab,
-        TermKeyCode::Enter => KeyCode::Enter,
-        TermKeyCode::Escape => KeyCode::Esc,
-        TermKeyCode::PageUp => KeyCode::PageUp,
-        TermKeyCode::PageDown => KeyCode::PageDown,
-        TermKeyCode::End => KeyCode::End,
-        TermKeyCode::Home => KeyCode::Home,
-        TermKeyCode::LeftArrow => KeyCode::Left,
-        TermKeyCode::RightArrow => KeyCode::Right,
-        TermKeyCode::UpArrow => KeyCode::Up,
-        TermKeyCode::DownArrow => KeyCode::Down,
-        TermKeyCode::Insert => KeyCode::Insert,
-        TermKeyCode::Delete => KeyCode::Delete,
-        TermKeyCode::Function(number) => KeyCode::F(number),
+        TerminaKeyCode::Char(value) => KeyCode::Char(value),
+        TerminaKeyCode::Backspace => KeyCode::Backspace,
+        TerminaKeyCode::Tab => KeyCode::Tab,
+        TerminaKeyCode::Enter => KeyCode::Enter,
+        TerminaKeyCode::Escape => KeyCode::Esc,
+        TerminaKeyCode::BackTab => KeyCode::BackTab,
+        TerminaKeyCode::PageUp => KeyCode::PageUp,
+        TerminaKeyCode::PageDown => KeyCode::PageDown,
+        TerminaKeyCode::End => KeyCode::End,
+        TerminaKeyCode::Home => KeyCode::Home,
+        TerminaKeyCode::Left => KeyCode::Left,
+        TerminaKeyCode::Right => KeyCode::Right,
+        TerminaKeyCode::Up => KeyCode::Up,
+        TerminaKeyCode::Down => KeyCode::Down,
+        TerminaKeyCode::Insert => KeyCode::Insert,
+        TerminaKeyCode::Delete => KeyCode::Delete,
+        TerminaKeyCode::Function(number) => KeyCode::F(number),
         _ => return None,
     })
 }
 
-fn modifiers(value: Modifiers) -> KeyModifiers {
+fn modifiers(value: TerminaModifiers) -> KeyModifiers {
     let mut result = KeyModifiers::NONE;
-    if value.contains(Modifiers::SHIFT) {
+    if value.contains(TerminaModifiers::SHIFT) {
         result |= KeyModifiers::SHIFT;
     }
-    if value.contains(Modifiers::CTRL) {
+    if value.contains(TerminaModifiers::CONTROL) {
         result |= KeyModifiers::CONTROL;
     }
-    if value.contains(Modifiers::ALT) {
+    if value.contains(TerminaModifiers::ALT) {
         result |= KeyModifiers::ALT;
+    }
+    if value.contains(TerminaModifiers::SUPER) {
+        result |= KeyModifiers::SUPER;
     }
     result
 }
 
-fn mouse_kind(buttons: termwiz::input::MouseButtons) -> MouseEventKind {
-    if buttons.contains(termwiz::input::MouseButtons::VERT_WHEEL) {
-        return if buttons.contains(termwiz::input::MouseButtons::WHEEL_POSITIVE) {
-            MouseEventKind::ScrollUp
-        } else {
-            MouseEventKind::ScrollDown
-        };
+fn mouse_kind(kind: TerminaMouseEventKind) -> MouseEventKind {
+    match kind {
+        TerminaMouseEventKind::Down(button) => MouseEventKind::Down(mouse_button(button)),
+        TerminaMouseEventKind::Up(button) => MouseEventKind::Up(mouse_button(button)),
+        TerminaMouseEventKind::Drag(button) => MouseEventKind::Drag(mouse_button(button)),
+        TerminaMouseEventKind::Moved => MouseEventKind::Moved,
+        TerminaMouseEventKind::ScrollUp => MouseEventKind::ScrollUp,
+        TerminaMouseEventKind::ScrollDown => MouseEventKind::ScrollDown,
+        TerminaMouseEventKind::ScrollLeft => MouseEventKind::ScrollLeft,
+        TerminaMouseEventKind::ScrollRight => MouseEventKind::ScrollRight,
     }
-    if buttons.contains(termwiz::input::MouseButtons::HORZ_WHEEL) {
-        return if buttons.contains(termwiz::input::MouseButtons::WHEEL_POSITIVE) {
-            MouseEventKind::ScrollRight
-        } else {
-            MouseEventKind::ScrollLeft
-        };
+}
+
+fn mouse_button(button: TerminaMouseButton) -> MouseButton {
+    match button {
+        TerminaMouseButton::Left => MouseButton::Left,
+        TerminaMouseButton::Right => MouseButton::Right,
+        TerminaMouseButton::Middle => MouseButton::Middle,
     }
-    if buttons.contains(termwiz::input::MouseButtons::LEFT) {
-        MouseEventKind::Down(MouseButton::Left)
-    } else if buttons.contains(termwiz::input::MouseButtons::RIGHT) {
-        MouseEventKind::Down(MouseButton::Right)
-    } else {
-        MouseEventKind::Down(MouseButton::Middle)
-    }
+}
+
+/// Format the typed palette and device-attribute queries as one terminal write.
+#[cfg(unix)]
+pub(crate) fn probe_query() -> Vec<u8> {
+    let palette = Osc::ChangeDynamicColors(
+        DynamicColorNumber::TextBackgroundColor,
+        vec![ColorOrQuery::Query],
+    );
+    let attributes = Csi::Device(Device::RequestPrimaryDeviceAttributes);
+    format!("{palette}{attributes}").into_bytes()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use termina::Parser;
 
     #[test]
-    fn removes_osc_reply_and_preserves_keyboard_input() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"a\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62;1;2cb");
-        demux.finish();
+    fn termina_parses_split_palette_and_key_events() {
+        let mut parser = Parser::default();
+        let bytes = b"\x1b]11;rgb:2c2c/3434/3c3c\x1b\\q";
+        for byte in bytes {
+            parser.parse(&[*byte], true);
+        }
 
-        assert_eq!(
-            demux.response(),
-            Some(&b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\"[..])
+        let events = std::iter::from_fn(|| parser.pop()).collect::<Vec<_>>();
+        assert!(matches!(
+            events.first(),
+            Some(TerminaEvent::Osc(Osc::ChangeDynamicColors(
+                DynamicColorNumber::TextBackgroundColor,
+                colors,
+            ))) if matches!(colors.as_slice(), [ColorOrQuery::Color(color)] if (color.red, color.green, color.blue) == (0x2c, 0x34, 0x3c))
+        ));
+        assert!(matches!(
+            events.get(1),
+            Some(TerminaEvent::Key(key)) if key.code == TerminaKeyCode::Char('q')
+        ));
+    }
+
+    #[test]
+    fn termina_preserves_key_before_probe_responses() {
+        let mut parser = Parser::default();
+        let bytes = b"q\x1b]11;rgb:2c2c/3434/3c3c\x1b\\\x1b[?62;1;2c";
+        parser.parse(bytes, true);
+        let events = std::iter::from_fn(|| parser.pop()).collect::<Vec<_>>();
+        assert!(
+            matches!(events.first(), Some(TerminaEvent::Key(key)) if key.code == TerminaKeyCode::Char('q'))
         );
-        assert!(demux.device_attributes());
-        let events = demux.into_events();
-        assert_eq!(events.len(), 2);
-        assert!(matches!(
-            events[0],
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('a'),
-                ..
-            })
-        ));
-        assert!(matches!(
-            events[1],
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('b'),
-                ..
-            })
-        ));
+        assert!(matches!(events.get(1), Some(TerminaEvent::Osc(_))));
+        assert!(matches!(events.get(2), Some(TerminaEvent::Csi(_))));
     }
 
     #[test]
-    fn leaves_non_probe_osc_sequences_as_input() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"\x1b]0;title\x07");
-        demux.finish();
-        assert!(demux.response().is_none());
+    fn c1_string_terminator_is_normalized_before_termina() {
+        let mut parser = Parser::default();
+        let bytes = b"\x1b]11;rgb:2c2c/3434/3c3c\x9cq";
+        let mut normalized = Vec::new();
+        for &byte in bytes {
+            if byte == 0x9c {
+                normalized.extend_from_slice(b"\x1b\\");
+            } else {
+                normalized.push(byte);
+            }
+        }
+        parser.parse(&normalized, true);
+        let events = std::iter::from_fn(|| parser.pop()).collect::<Vec<_>>();
+        assert!(
+            matches!(events.get(1), Some(TerminaEvent::Key(key)) if key.code == TerminaKeyCode::Char('q'))
+        );
     }
 
     #[test]
-    fn recognizes_a_reply_split_across_reads() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"\x1b]11;rgb:ff/");
-        assert!(demux.response().is_none());
-        demux.feed(b"ff/ff\x1b\\");
-        demux.finish();
-        assert_eq!(demux.response(), Some(&b"\x1b]11;rgb:ff/ff/ff\x1b\\"[..]));
-    }
-
-    #[test]
-    fn drops_incomplete_probe_payload_at_finish() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"\x1b]11;rgb:2c2c/3434");
-        assert!(demux.collecting_probe_response());
-        demux.finish();
-        assert!(demux.into_events().is_empty());
-    }
-
-    #[test]
-    fn consumes_a_late_device_attributes_reply_without_leaking_payload() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"\x1b[?62;1;2c");
-        demux.feed(b"\x1b]11;rgb:2c2c/3434/3c3c\x1b\\");
-        demux.finish();
-        assert!(demux.device_attributes());
-        assert!(demux.response().is_some());
-        assert!(demux.into_events().is_empty());
-    }
-
-    #[test]
-    fn completes_cursor_position_reply_and_preserves_following_input() {
-        let mut demux = InputDemux::new();
-        demux.feed(b"\x1b[1;1Rz");
-        demux.finish();
-
-        let events = demux.into_events();
-        assert!(matches!(
-            events.last(),
-            Some(Event::Key(KeyEvent {
-                code: KeyCode::Char('z'),
-                ..
-            }))
-        ));
+    fn query_uses_typed_termina_sequences() {
+        assert_eq!(probe_query(), b"\x1b]11;?\x1b\\\x1b[c".to_vec());
     }
 }
