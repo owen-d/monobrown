@@ -56,7 +56,11 @@ impl TuiSession {
     }
 
     /// Enter raw mode and the alternate screen, returning owned terminal state.
-    fn enter() -> io::Result<Self> {
+    ///
+    /// The returned session restores the terminal when dropped. This is useful
+    /// for callers that need to render an initial loading state before doing
+    /// asynchronous work.
+    pub fn enter() -> io::Result<Self> {
         if !io::stdout().is_terminal() {
             return Err(io::Error::new(
                 io::ErrorKind::NotConnected,
