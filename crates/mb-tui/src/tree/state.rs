@@ -6,7 +6,9 @@
 //! in (expand or move to first child), `h` drills out (collapse and move
 //! to parent).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
+use std::time::Duration;
 
 use super::{CachedFlatEntry, FlatNode, NodeId, TreeNode, build_flat_cache, find_node_by_id};
 
@@ -48,6 +50,134 @@ pub enum TransitionMode {
     #[default]
     Animated,
     Immediate,
+}
+
+const DECAY_TIME_CONSTANTS: f64 = 5.0;
+pub(crate) const SNAP_EPSILON: f64 = 0.001;
+const TRANSITION_MS: f64 = 600.0;
+
+/// Animation state for an expanding or collapsing hierarchy node.
+#[derive(Clone, Debug)]
+pub struct ExpandAnimation {
+    pub value: f64,
+    pub target: f64,
+}
+
+/// Renderer-independent path, disclosure, and transition state.
+///
+/// Domain widgets retain ownership of their tree and geometry, while this
+/// state owns the mutable hierarchy mechanics shared by flame and trace views.
+#[derive(Clone)]
+pub struct HierarchyState<Id>
+where
+    Id: Copy + Eq + Hash,
+{
+    pub(crate) path: Vec<Id>,
+    pub(crate) animations: HashMap<Id, ExpandAnimation>,
+    pub(crate) disclosed: HashSet<Id>,
+    pub(crate) transition_mode: TransitionMode,
+}
+
+impl<Id> HierarchyState<Id>
+where
+    Id: Copy + Eq + Hash,
+{
+    pub fn new(root: Id) -> Self {
+        Self {
+            path: vec![root],
+            animations: HashMap::new(),
+            disclosed: HashSet::new(),
+            transition_mode: TransitionMode::default(),
+        }
+    }
+
+    pub fn set_transition_mode(&mut self, mode: TransitionMode) {
+        self.transition_mode = mode;
+        if mode == TransitionMode::Immediate {
+            self.animations.clear();
+        }
+    }
+
+    pub fn tick(&mut self, dt: Duration) -> bool {
+        let dt_secs = dt.as_secs_f64();
+        let k = DECAY_TIME_CONSTANTS / (TRANSITION_MS / 1000.0);
+        let factor = 1.0 - (-k * dt_secs).exp();
+        let mut finished = Vec::new();
+        let mut any_collapse_finished = false;
+        for (id, anim) in &mut self.animations {
+            anim.value += (anim.target - anim.value) * factor;
+            if (anim.value - anim.target).abs() < SNAP_EPSILON {
+                anim.value = anim.target;
+                finished.push(*id);
+            }
+        }
+        for id in finished {
+            let anim = self.animations.remove(&id);
+            if anim.is_some_and(|animation| animation.target == 0.0) {
+                any_collapse_finished = true;
+            }
+        }
+        any_collapse_finished
+    }
+
+    pub fn needs_idle_render(&self) -> bool {
+        !self.animations.is_empty()
+    }
+
+    pub fn transition_animations(&mut self, new_path: &[Id]) {
+        debug_assert!(!new_path.is_empty(), "new_path must not be empty");
+        let old_path = self.path.clone();
+        for (index, &old_id) in old_path.iter().enumerate() {
+            let was_expanded = index + 1 < old_path.len();
+            let still_expanded = new_path
+                .iter()
+                .position(|id| *id == old_id)
+                .is_some_and(|index| index + 1 < new_path.len());
+            if was_expanded && !still_expanded {
+                self.start_collapse(old_id);
+            }
+        }
+        for (index, &new_id) in new_path.iter().enumerate() {
+            let is_leaf = index == new_path.len() - 1;
+            let was_expanded = old_path
+                .iter()
+                .position(|id| *id == new_id)
+                .is_some_and(|index| index + 1 < old_path.len());
+            if !is_leaf && !was_expanded {
+                self.start_expand(new_id);
+            }
+        }
+    }
+
+    fn start_expand(&mut self, id: Id) {
+        if self.transition_mode == TransitionMode::Immediate {
+            return;
+        }
+        self.animations.insert(
+            id,
+            ExpandAnimation {
+                value: SNAP_EPSILON * 2.0,
+                target: 1.0,
+            },
+        );
+    }
+
+    fn start_collapse(&mut self, id: Id) {
+        if self.transition_mode == TransitionMode::Immediate {
+            return;
+        }
+        if let Some(animation) = self.animations.get_mut(&id) {
+            animation.target = 0.0;
+        } else {
+            self.animations.insert(
+                id,
+                ExpandAnimation {
+                    value: 1.0,
+                    target: 0.0,
+                },
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

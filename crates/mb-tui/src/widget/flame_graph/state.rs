@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -7,24 +8,15 @@ use super::data::{SpanId, SpanNode};
 use super::layout::{FlameRow, RowKind};
 use super::render::BarStyle;
 use crate::input::KeyResult;
+use crate::tree::state::SNAP_EPSILON;
 pub use crate::tree::state::{
-    CursorNavigation, FocusNavigation, RootVisibility, TransitionMode, VerticalNavigation,
+    CursorNavigation, ExpandAnimation, FocusNavigation, HierarchyState, RootVisibility,
+    TransitionMode, VerticalNavigation,
 };
-
-const DECAY_TIME_CONSTANTS: f64 = 5.0;
-const SNAP_EPSILON: f64 = 0.001;
-const TRANSITION_MS: f64 = 600.0;
 
 /// Navigation reference width. Row ordering is width-independent, so any
 /// positive value works for cursor math.
 const NAV_WIDTH: u16 = 1000;
-
-/// Animation state for an expand/collapse transition.
-#[derive(Clone, Debug)]
-pub struct ExpandAnimation {
-    pub value: f64,
-    pub target: f64,
-}
 
 /// View state for a horizontal flame graph widget.
 ///
@@ -54,15 +46,11 @@ enum MarkAction {
 pub struct FlameGraph {
     pub(crate) root: SpanNode,
     pub(crate) cost_types: Vec<super::data::CostType>,
-    /// Path from root to the cursor node. Always non-empty.
-    pub(crate) path: Vec<SpanId>,
     /// Index into the visible-row list for the cursor.
     pub(crate) cursor: usize,
     pub(crate) selected_for_legend: Option<SpanId>,
-    pub(crate) animations: HashMap<SpanId, ExpandAnimation>,
-    /// Structural disclosures requested by a domain view (for example a
-    /// bounded JSON preview). These are independent of cursor navigation.
-    pub(crate) disclosed: HashSet<SpanId>,
+    /// Shared hierarchy path, disclosure, and transition state.
+    pub(crate) hierarchy: HierarchyState<SpanId>,
     /// When set, this span is the visual root (focus mode).
     pub(crate) focus: Option<SpanId>,
     /// Visual style for bar segments.
@@ -79,23 +67,33 @@ pub struct FlameGraph {
     focus_navigation: FocusNavigation,
     root_visibility: RootVisibility,
     vertical_navigation: VerticalNavigation,
-    transition_mode: TransitionMode,
     marks: HashMap<char, SpanId>,
     pending_mark: Option<MarkAction>,
+}
+
+impl Deref for FlameGraph {
+    type Target = HierarchyState<SpanId>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.hierarchy
+    }
+}
+
+impl DerefMut for FlameGraph {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.hierarchy
+    }
 }
 
 impl FlameGraph {
     pub fn new(root: SpanNode, cost_types: Vec<super::data::CostType>) -> Self {
         let root_id = root.id;
-        let path = vec![root_id];
         Self {
             root,
             cost_types,
-            path,
             cursor: 0,
             selected_for_legend: Some(root_id),
-            animations: HashMap::new(),
-            disclosed: HashSet::new(),
+            hierarchy: HierarchyState::new(root_id),
             focus: None,
             bar_style: BarStyle::default(),
             undo_stack: Vec::new(),
@@ -106,7 +104,6 @@ impl FlameGraph {
             focus_navigation: FocusNavigation::default(),
             root_visibility: RootVisibility::default(),
             vertical_navigation: VerticalNavigation::default(),
-            transition_mode: TransitionMode::default(),
             marks: HashMap::new(),
             pending_mark: None,
         }
@@ -134,10 +131,7 @@ impl FlameGraph {
 
     /// Configure whether disclosure transitions animate.
     pub fn set_transition_mode(&mut self, mode: TransitionMode) {
-        self.transition_mode = mode;
-        if mode == TransitionMode::Immediate {
-            self.animations.clear();
-        }
+        self.hierarchy.set_transition_mode(mode);
     }
 
     /// Keep selected structural nodes expanded independently of the cursor
@@ -145,7 +139,9 @@ impl FlameGraph {
     pub fn set_disclosed_spans(&mut self, spans: impl IntoIterator<Item = SpanId>) {
         self.disclosed.clear();
         for span in spans {
-            self.disclosed.extend(ancestor_path(&self.root, span));
+            self.hierarchy
+                .disclosed
+                .extend(ancestor_path(&self.root, span));
         }
     }
 
@@ -224,26 +220,7 @@ impl FlameGraph {
 
     /// Advance expand/collapse animations by `dt`.
     pub fn tick(&mut self, dt: Duration) {
-        let dt_secs = dt.as_secs_f64();
-        let k = DECAY_TIME_CONSTANTS / (TRANSITION_MS / 1000.0);
-        let factor = 1.0 - (-k * dt_secs).exp();
-
-        let mut finished = Vec::new();
-        let mut any_collapse_finished = false;
-        for (span_id, anim) in &mut self.animations {
-            anim.value += (anim.target - anim.value) * factor;
-            if (anim.value - anim.target).abs() < SNAP_EPSILON {
-                anim.value = anim.target;
-                finished.push(*span_id);
-            }
-        }
-        for span_id in finished {
-            let anim = self.animations.remove(&span_id);
-            if anim.is_some_and(|a| a.target == 0.0) {
-                any_collapse_finished = true;
-            }
-        }
-
+        let any_collapse_finished = self.hierarchy.tick(dt);
         // When a collapse finishes, the visible row list shrinks. Reposition
         // the cursor to the path leaf in the new list so it stays valid.
         if any_collapse_finished {
@@ -253,7 +230,7 @@ impl FlameGraph {
 
     /// True when the widget needs idle redraws to advance animations.
     pub fn needs_idle_render(&self) -> bool {
-        !self.animations.is_empty()
+        self.hierarchy.needs_idle_render()
     }
 
     /// Current cursor index in the visible-row list.
@@ -831,8 +808,9 @@ impl FlameGraph {
             parent_id
         };
         self.push_undo();
+        let root = self.root.clone();
         self.disclosed.retain(|id| {
-            !ancestor_path(&self.root, *id)
+            !ancestor_path(&root, *id)
                 .iter()
                 .any(|ancestor| *ancestor == selection_id)
         });
