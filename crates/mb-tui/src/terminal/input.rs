@@ -257,6 +257,12 @@ impl InputDemux {
             {
                 self.device_attributes = true;
                 self.candidate.clear();
+            } else if (0x40..=0x7e).contains(&byte) {
+                // CSI responses such as the cursor-position reply (`R`)
+                // are complete control sequences too. Only DA is a probe
+                // response; every other final byte must return to the
+                // keyboard parser instead of leaving the candidate open.
+                self.flush_candidate();
             } else if self.candidate.len() > MAX_CONTROL_SEQUENCE {
                 self.flush_candidate();
             }
@@ -447,5 +453,21 @@ mod tests {
         assert!(demux.device_attributes());
         assert!(demux.response().is_some());
         assert!(demux.into_events().is_empty());
+    }
+
+    #[test]
+    fn completes_cursor_position_reply_and_preserves_following_input() {
+        let mut demux = InputDemux::new();
+        demux.feed(b"\x1b[1;1Rz");
+        demux.finish();
+
+        let events = demux.into_events();
+        assert!(matches!(
+            events.last(),
+            Some(Event::Key(KeyEvent {
+                code: KeyCode::Char('z'),
+                ..
+            }))
+        ));
     }
 }
