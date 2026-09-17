@@ -5,9 +5,9 @@ use std::time::Duration;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use mb_tui::input::KeyResult;
 use mb_tui::widget::trace_view::{
-    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceError, TraceGroup, TraceItem,
-    TraceTimeUnit, TraceTiming, TraceTrack, TraceView, TraceVisualRole, TrackId,
-    render_trace_view_mut,
+    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceError,
+    TraceGroup, TraceItem, TraceTimeUnit, TraceTiming, TraceTrack, TraceView, TraceVisualRole,
+    TrackId, render_trace_view_mut,
 };
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -120,6 +120,37 @@ fn selected_row_expands_observed_time_and_details() {
     assert!(rendered.contains("source: fixture"));
     assert!(rendered.contains("payload:"));
     assert!(rendered.contains("true"));
+}
+
+#[test]
+fn structured_detail_blocks_render_as_sections_tables_and_json() {
+    let mut detailed = item(1, "stage 3", TraceTiming::Interval { start: 0, end: 4 });
+    detailed.detail_blocks = vec![
+        TraceDetailBlock::Section {
+            title: "Scheduling".into(),
+            blocks: vec![TraceDetailBlock::Attribute {
+                name: "contract".into(),
+                value: "partial aggregate".into(),
+            }],
+        },
+        TraceDetailBlock::Table {
+            title: Some("Metrics".into()),
+            columns: vec!["rows".into(), "bytes".into()],
+            rows: vec![vec!["42".into(), "1.2 MB".into()]],
+        },
+        TraceDetailBlock::Json {
+            name: "output".into(),
+            value: r#"{"ok":true}"#.into(),
+        },
+    ];
+    let mut view = TraceView::new(data(vec![detailed])).unwrap();
+    assert!(view.select_item(ItemId(1)));
+    view.handle_key(&KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    let rendered = text(&frame(&mut view, 120, 24));
+    assert!(rendered.contains("Scheduling"), "{rendered}");
+    assert!(rendered.contains("partial aggregate"), "{rendered}");
+    assert!(rendered.contains("rows"), "{rendered}");
+    assert!(rendered.contains("\"ok\": true"), "{rendered}");
 }
 
 #[test]
