@@ -146,7 +146,7 @@ fn apply(state: &mut DemoState, key: &crossterm::event::KeyEvent) {
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(
-        DemoState { card_count: 4 },
+        || DemoState { card_count: 4 },
         "Grid: Agent Dashboard (+/- to add/remove cards)",
         render,
         tick,

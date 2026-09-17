@@ -7,9 +7,8 @@ use mb_tui::devkit::trace_view::trace_view_interactive_catalog;
 use mb_tui::widget::trace_view::{TraceView, render_trace_view};
 
 fn main() -> std::io::Result<()> {
-    let catalog = trace_view_interactive_catalog();
     playground::run_animated_interactive(
-        catalog.initial_state(0).clone(),
+        || trace_view_interactive_catalog().initial_state(0).clone(),
         "Trace View",
         render_trace_view,
         TraceView::tick,

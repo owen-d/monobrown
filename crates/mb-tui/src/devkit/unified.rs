@@ -7,9 +7,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -24,6 +22,7 @@ use crate::input::KeyResult;
 use crate::input::modal::{self, HelpContext, KeyBinding, ModalHelp, ModalInput};
 use crate::input::{RenderScheduler, RenderStep, apply_render_effect};
 use crate::render::{Constraints, LayoutRenderable};
+use crate::terminal::TuiSession;
 use crate::theme;
 use crate::widget::hotkey::HotkeyBarRenderable;
 
@@ -639,22 +638,26 @@ pub fn animated_interactive_entry<S: Clone + 'static>(
 /// Tab/Shift-Tab switch between entries. q/Esc at the top level quits.
 /// Animated entries tick at ~60fps. Catalog entries support explorer/live
 /// modes just like the standalone playground.
-pub fn run_unified(entries: Vec<Box<dyn CatalogEntry>>) -> io::Result<()> {
-    assert!(!entries.is_empty(), "must provide at least one entry");
-
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    stdout.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let result = unified_loop(&mut terminal, entries);
-
-    terminal::disable_raw_mode()?;
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-
-    result
+///
+/// `init` is called after terminal setup; construct catalogs and entries inside
+/// the closure so theme-dependent state observes the active session.
+pub fn run_unified<Init>(init: Init) -> io::Result<()>
+where
+    Init: FnOnce() -> Vec<Box<dyn CatalogEntry>>,
+{
+    TuiSession::run(
+        || {
+            let entries = init();
+            if entries.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "must provide at least one entry",
+                ));
+            }
+            Ok(entries)
+        },
+        |session, entries| unified_loop(session.terminal(), entries),
+    )
 }
 
 fn unified_loop(

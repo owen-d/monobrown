@@ -11,9 +11,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -27,6 +25,7 @@ use crate::input::KeyResult;
 use crate::input::modal::{self, HelpContext, KeyBinding, ModalHelp, ModalInput};
 use crate::input::{RenderScheduler, RenderStep, apply_render_effect};
 use crate::render::{LayoutRenderable, centered_rect};
+use crate::terminal::TuiSession;
 use crate::theme;
 use crate::widget::hotkey::{HelpPaneRenderable, HotkeyBarRenderable};
 
@@ -407,27 +406,24 @@ impl<'a, S: Clone> PlaygroundController<'a, S> {
 /// All catalogs start in Explorer mode. Interactive catalogs can enter
 /// scenarios (live) via Enter. Non-interactive catalogs browse only.
 ///
+/// `init` is called after terminal setup; construct the catalog inside the
+/// closure so theme-dependent state observes the active session.
+///
 /// Requires `S: Clone` so scenarios can be reset to initial state.
-pub fn run<S: Clone>(catalog: &ScenarioCatalog<S>) -> Result<(), Box<dyn std::error::Error>> {
-    if catalog.is_empty() {
-        return Err("catalog has no scenarios".into());
-    }
-
-    // Set up terminal.
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    stdout.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let result = run_loop(&mut terminal, catalog);
-
-    // Restore terminal unconditionally.
-    terminal::disable_raw_mode()?;
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-
-    result
+pub fn run<S: Clone, Init>(init: Init) -> Result<(), Box<dyn std::error::Error>>
+where
+    Init: FnOnce() -> ScenarioCatalog<S>,
+{
+    TuiSession::run(
+        || {
+            let catalog = init();
+            if catalog.is_empty() {
+                return Err("catalog has no scenarios".into());
+            }
+            Ok(catalog)
+        },
+        |session, catalog| run_loop(session.terminal(), &catalog),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -601,47 +597,49 @@ pub(super) fn draw_help_overlay_generic<M: ModalHelp>(
 /// - **Right / l**: step forward one frame (when paused)
 /// - **Left / h**: step backward one frame (when paused)
 /// - **q / Esc**: quit
-pub fn run_animated<S>(
-    state: S,
+///
+/// `init` is called after terminal setup; construct the animated state inside
+/// the closure so theme-dependent state observes the active session.
+pub fn run_animated<S, Init>(
+    init: Init,
     title: &str,
     render_fn: fn(&S, Rect, &mut Buffer),
     tick: fn(&mut S, Duration),
     step_size: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    Init: FnOnce() -> S,
+{
     Ok(run_animated_inner(
-        state, title, render_fn, tick, None, step_size,
+        init, title, render_fn, tick, None, step_size,
     )?)
 }
 
-fn run_animated_inner<S>(
-    state: S,
+fn run_animated_inner<S, Init>(
+    init: Init,
     title: &str,
     render_fn: fn(&S, Rect, &mut Buffer),
     tick: fn(&mut S, Duration),
     apply: Option<fn(&mut S, &KeyEvent)>,
     step_size: Duration,
-) -> io::Result<()> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    stdout.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let result = run_animated_loop_inner(
-        &mut terminal,
-        state,
-        title,
-        render_fn,
-        tick,
-        apply,
-        step_size,
-    );
-
-    terminal::disable_raw_mode()?;
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-
-    result
+) -> io::Result<()>
+where
+    Init: FnOnce() -> S,
+{
+    TuiSession::run(
+        || Ok::<_, io::Error>(init()),
+        |session, state| {
+            run_animated_loop_inner(
+                session.terminal(),
+                state,
+                title,
+                render_fn,
+                tick,
+                apply,
+                step_size,
+            )
+        },
+    )
 }
 
 fn draw_animated_inner<S>(
@@ -785,13 +783,19 @@ fn run_animated_loop_inner<S>(
 /// - **Left / h**: step backward one frame (when paused)
 /// - **q / Esc**: quit
 /// - All other keys: forwarded to `apply`
-pub fn run_animated_interactive<S>(
-    state: S,
+///
+/// `init` is called after terminal setup; construct the animated state inside
+/// the closure so theme-dependent state observes the active session.
+pub fn run_animated_interactive<S, Init>(
+    init: Init,
     title: &str,
     render_fn: fn(&S, Rect, &mut Buffer),
     tick: fn(&mut S, Duration),
     apply: fn(&mut S, &KeyEvent),
     step_size: Duration,
-) -> io::Result<()> {
-    run_animated_inner(state, title, render_fn, tick, Some(apply), step_size)
+) -> io::Result<()>
+where
+    Init: FnOnce() -> S,
+{
+    run_animated_inner(init, title, render_fn, tick, Some(apply), step_size)
 }

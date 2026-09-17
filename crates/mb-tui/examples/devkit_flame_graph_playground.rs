@@ -5,10 +5,8 @@ use mb_tui::devkit::playground;
 use mb_tui::widget::flame_graph::{BarStyle, FlameGraph, render_flame_graph};
 
 fn main() -> std::io::Result<()> {
-    let state = test_flame_graph();
-
     playground::run_animated_interactive(
-        state,
+        test_flame_graph,
         "Flame Graph",
         render_flame_graph,
         FlameGraph::tick,

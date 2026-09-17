@@ -133,13 +133,11 @@ fn render(state: &DemoState, area: Rect, buf: &mut Buffer) {
 fn tick(_state: &mut DemoState, _dt: Duration) {}
 
 fn main() -> std::io::Result<()> {
-    let state = DemoState {
-        scroll: 0,
-        overlay_visible: true,
-    };
-
     playground::run_animated_interactive(
-        state,
+        || DemoState {
+            scroll: 0,
+            overlay_visible: true,
+        },
         "Stack (Rearview Mirror)",
         render,
         tick,

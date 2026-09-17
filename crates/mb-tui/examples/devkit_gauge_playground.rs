@@ -4,7 +4,7 @@ use mb_tui::devkit::{gauge_demo, playground};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(
-        gauge_demo::initial_state(),
+        || gauge_demo::initial_state(),
         "Gauge",
         gauge_demo::render,
         gauge_demo::tick,

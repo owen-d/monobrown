@@ -5,10 +5,8 @@ use mb_tui::devkit::playground;
 use mb_tui::widget::bar_selector::{BarSelector, render_bar_selector};
 
 fn main() -> std::io::Result<()> {
-    let state = BarSelector::new(&["Alpha", "Beta", "Gamma"]);
-
     playground::run_animated_interactive(
-        state,
+        || BarSelector::new(&["Alpha", "Beta", "Gamma"]),
         "Bar Selector",
         render_bar_selector,
         BarSelector::tick,

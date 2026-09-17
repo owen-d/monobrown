@@ -165,25 +165,23 @@ fn apply(state: &mut DemoState, key: &crossterm::event::KeyEvent) {
 }
 
 fn main() -> std::io::Result<()> {
-    let state = DemoState {
-        rules: QueueList::new(vec![
-            "Keep last 10 messages".into(),
-            "Preserve tool outputs".into(),
-            "Summarize after 5min".into(),
-            "Drop system prompts".into(),
-        ]),
-        detail: Stepper::new(vec![
-            "Minimal".into(),
-            "Standard".into(),
-            "Verbose".into(),
-            "Debug".into(),
-        ]),
-        threshold: RangeSlider::new(0.7).steps(10),
-        focus: Focus::Rules,
-    };
-
     playground::run_animated_interactive(
-        state,
+        || DemoState {
+            rules: QueueList::new(vec![
+                "Keep last 10 messages".into(),
+                "Preserve tool outputs".into(),
+                "Summarize after 5min".into(),
+                "Drop system prompts".into(),
+            ]),
+            detail: Stepper::new(vec![
+                "Minimal".into(),
+                "Standard".into(),
+                "Verbose".into(),
+                "Debug".into(),
+            ]),
+            threshold: RangeSlider::new(0.7).steps(10),
+            focus: Focus::Rules,
+        },
         "Editable Rules",
         render,
         tick,

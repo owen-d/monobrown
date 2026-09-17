@@ -220,10 +220,8 @@ fn render_param_panel(state: &ThemePicker, area: Rect, buf: &mut Buffer) {
 // ---------------------------------------------------------------------------
 
 fn main() -> std::io::Result<()> {
-    let state = ThemePicker::new();
-
     playground::run_animated_interactive(
-        state,
+        ThemePicker::new,
         "Theme Picker",
         render,
         tick,

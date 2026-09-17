@@ -118,28 +118,26 @@ fn apply(state: &mut DemoState, key: &crossterm::event::KeyEvent) {
 }
 
 fn main() -> std::io::Result<()> {
-    let state = DemoState {
-        tab_bar: TabBar::new(vec!["Gauge".into(), "Flashcard".into(), "Hotkeys".into()]),
-        gauge: Gauge::new(0.5)
-            .label("Confidence".to_string())
-            .low_label("low".to_string())
-            .high_label("high".to_string())
-            .gradient(),
-        flashcard: Flashcard::new(
-            "What is a trait?".into(),
-            "A collection of methods defined for an unknown type".into(),
-        ),
-        coach: HotkeyCoach::new(vec![
-            Shortcut::new("Tab", "switch focus"),
-            Shortcut::new("h/l", "navigate"),
-            Shortcut::new("Space", "flip card"),
-        ])
-        .orientation(Orientation::Vertical),
-        focus: Focus::Tabs,
-    };
-
     playground::run_animated_interactive(
-        state,
+        || DemoState {
+            tab_bar: TabBar::new(vec!["Gauge".into(), "Flashcard".into(), "Hotkeys".into()]),
+            gauge: Gauge::new(0.5)
+                .label("Confidence".to_string())
+                .low_label("low".to_string())
+                .high_label("high".to_string())
+                .gradient(),
+            flashcard: Flashcard::new(
+                "What is a trait?".into(),
+                "A collection of methods defined for an unknown type".into(),
+            ),
+            coach: HotkeyCoach::new(vec![
+                Shortcut::new("Tab", "switch focus"),
+                Shortcut::new("h/l", "navigate"),
+                Shortcut::new("Space", "flip card"),
+            ])
+            .orientation(Orientation::Vertical),
+            focus: Focus::Tabs,
+        },
         "Lens Switcher",
         render,
         tick,

@@ -138,23 +138,19 @@ fn apply(state: &mut DemoState, key: &crossterm::event::KeyEvent) {
 }
 
 fn main() -> std::io::Result<()> {
-    let body_lines: Vec<String> = (0..20)
-        .map(|i| format!("  Document line {}", i + 1))
-        .collect();
-
-    let state = DemoState {
-        queue: QueueList::new(vec![
-            "[!] Build failed".into(),
-            "[i] PR merged".into(),
-            "[i] Tests pass".into(),
-        ]),
-        body_lines,
-        next_id: 4,
-        focus: Focus::Body,
-    };
-
     playground::run_animated_interactive(
-        state,
+        || DemoState {
+            queue: QueueList::new(vec![
+                "[!] Build failed".into(),
+                "[i] PR merged".into(),
+                "[i] Tests pass".into(),
+            ]),
+            body_lines: (0..20)
+                .map(|i| format!("  Document line {}", i + 1))
+                .collect(),
+            next_id: 4,
+            focus: Focus::Body,
+        },
         "Notification Sidebar",
         render,
         tick,

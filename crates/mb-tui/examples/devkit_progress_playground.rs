@@ -4,7 +4,7 @@ use mb_tui::devkit::{playground, progress_demo};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(
-        progress_demo::initial_state(),
+        || progress_demo::initial_state(),
         "Progress Bar Demo",
         progress_demo::render,
         progress_demo::tick,

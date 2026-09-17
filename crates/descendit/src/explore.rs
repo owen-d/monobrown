@@ -11,9 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
@@ -26,6 +24,7 @@ use mb_tui::highlight::highlight_code;
 use mb_tui::input::modal::{self, KeyBinding, ModalInput};
 use mb_tui::input::{KeyResult, RenderScheduler, RenderStep, apply_render_effect};
 use mb_tui::render::{LayoutPagerView, LayoutRenderable, LayoutRenderableItem, render_pane_frame};
+use mb_tui::terminal::TuiSession;
 use mb_tui::widget::flame_graph::{
     CostType, FlameGraph, SpanId, SpanNode, SpanNodeBuilder, render_flame_graph_mut,
 };
@@ -744,27 +743,29 @@ pub fn run_explore(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("codebase");
-    let (root, cost_types, hotspots_by_span) =
-        heatmap_to_flame_graph_with_hotspots(&roots, path_label);
-    let app = ExploreApp::new(
-        FlameGraph::new(root, cost_types),
-        path.to_path_buf(),
-        hotspots_by_span,
-    );
-
-    run_tui(app)
+    let path = path.to_path_buf();
+    run_tui(move || {
+        let (root, cost_types, hotspots_by_span) =
+            heatmap_to_flame_graph_with_hotspots(&roots, path_label);
+        Ok(ExploreApp::new(
+            FlameGraph::new(root, cost_types),
+            path,
+            hotspots_by_span,
+        ))
+    })
 }
 
 /// Launch the explore TUI with pre-built heatmap tree roots.
 pub fn run_explore_with_tree(roots: Vec<crate::rollup::HeatmapTreeNode>) -> anyhow::Result<()> {
-    let (root, cost_types, hotspots_by_span) =
-        heatmap_to_flame_graph_with_hotspots(&roots, "codebase");
-    let app = ExploreApp::new(
-        FlameGraph::new(root, cost_types),
-        PathBuf::from("."),
-        hotspots_by_span,
-    );
-    run_tui(app)
+    run_tui(move || {
+        let (root, cost_types, hotspots_by_span) =
+            heatmap_to_flame_graph_with_hotspots(&roots, "codebase");
+        Ok(ExploreApp::new(
+            FlameGraph::new(root, cost_types),
+            PathBuf::from("."),
+            hotspots_by_span,
+        ))
+    })
 }
 
 fn load_policy(path: Option<&Path>) -> anyhow::Result<crate::CompliancePolicy> {
@@ -778,20 +779,13 @@ fn load_policy(path: Option<&Path>) -> anyhow::Result<crate::CompliancePolicy> {
 // Terminal setup + event loop
 // ---------------------------------------------------------------------------
 
-fn run_tui(mut app: ExploreApp) -> anyhow::Result<()> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    stdout.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let result = event_loop(&mut terminal, &mut app);
-
-    terminal::disable_raw_mode()?;
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-
-    result
+fn run_tui<Init>(init: Init) -> anyhow::Result<()>
+where
+    Init: FnOnce() -> anyhow::Result<ExploreApp>,
+{
+    TuiSession::run(init, |session, mut app| {
+        event_loop(session.terminal(), &mut app)
+    })
 }
 
 // ---------------------------------------------------------------------------

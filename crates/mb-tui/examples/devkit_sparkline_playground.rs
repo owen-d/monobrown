@@ -4,7 +4,7 @@ use mb_tui::devkit::{playground, sparkline_demo};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(
-        sparkline_demo::initial_state(),
+        || sparkline_demo::initial_state(),
         "Sparkline",
         sparkline_demo::render,
         sparkline_demo::tick,

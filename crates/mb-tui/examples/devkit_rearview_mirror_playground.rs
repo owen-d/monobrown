@@ -4,7 +4,7 @@ use mb_tui::devkit::{playground, rearview_mirror_demo};
 
 fn main() -> std::io::Result<()> {
     playground::run_animated_interactive(
-        rearview_mirror_demo::initial_state(),
+        || rearview_mirror_demo::initial_state(),
         "Rearview Mirror",
         rearview_mirror_demo::render,
         rearview_mirror_demo::tick,
