@@ -222,7 +222,8 @@ pub struct TraceGroup {
 /// Groups appear in supplied order, followed by ungrouped tracks. Tracks retain
 /// supplied order within each group. Admission accepts at most 4096 groups,
 /// 4096 tracks, 65536 items, 32 detail pairs per item, 4096 UTF-8 bytes per field,
-/// and 8 MiB of total text. Oversized input is rejected without partial display.
+/// 32 detail pairs or blocks per item/track, 8 section nesting levels, and
+/// 8 MiB of total text. Oversized input is rejected without partial display.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceData {
     /// Unit shared by every item coordinate.
@@ -323,7 +324,11 @@ impl TraceData {
         }
         for track in &self.tracks {
             check_limit(track.details.len(), 32, "detail pairs per track (32)")?;
-            check_limit(track.detail_blocks.len(), 32, "detail blocks per track (32)")?;
+            check_limit(
+                track.detail_blocks.len(),
+                32,
+                "detail blocks per track (32)",
+            )?;
             check_text(&track.label, &mut text_bytes)?;
             for (key, value) in &track.details {
                 check_text(key, &mut text_bytes)?;

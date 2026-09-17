@@ -6,9 +6,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Scenario, ScenarioCatalog};
 use crate::widget::trace_view::{
-    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceGroup,
-    TraceItem, TraceTimeUnit, TraceTiming, TraceTrack, TraceView, TraceVisualRole, TrackId,
-    render_trace_view,
+    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceGroup, TraceItem,
+    TraceTimeUnit, TraceTiming, TraceTrack, TraceView, TraceVisualRole, TrackId, render_trace_view,
 };
 
 const NEUTRAL: CategoryId = CategoryId(0);
