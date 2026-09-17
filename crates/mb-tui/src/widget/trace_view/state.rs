@@ -517,7 +517,11 @@ impl TraceView {
                 .iter()
                 .find(|track| track.id == id)
                 .map_or_else(String::new, |track| {
-                    format_detail_text(&track.label, &track.details)
+                    let mut text = format_detail_text(&track.label, &track.details);
+                    for block in &track.detail_blocks {
+                        block.search_text(&mut text);
+                    }
+                    text
                 }),
             Some(TraceSpan::Item(id)) => self
                 .data
@@ -525,7 +529,11 @@ impl TraceView {
                 .iter()
                 .find_map(|track| find_item(&track.items, id))
                 .map_or_else(String::new, |item| {
-                    format_detail_text(&item.label, &item.details)
+                    let mut text = format_detail_text(&item.label, &item.details);
+                    for block in &item.detail_blocks {
+                        block.search_text(&mut text);
+                    }
+                    text
                 }),
             None => String::new(),
         }
@@ -765,6 +773,7 @@ mod tests {
                 group: None,
                 label: "session".into(),
                 details: vec![],
+                detail_blocks: vec![],
                 items: vec![
                     TraceItem {
                         id: ItemId(0),
@@ -772,6 +781,7 @@ mod tests {
                         label: "reasoning".into(),
                         timing: TraceTiming::Instant(0),
                         details: vec![],
+                        detail_blocks: vec![],
                         children: vec![],
                     },
                     TraceItem {
@@ -780,6 +790,7 @@ mod tests {
                         label: "tool call".into(),
                         timing: TraceTiming::Instant(1),
                         details: vec![("kind".into(), "query".into())],
+                        detail_blocks: vec![],
                         children: vec![],
                     },
                 ],

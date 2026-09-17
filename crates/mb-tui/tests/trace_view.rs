@@ -23,6 +23,7 @@ fn item(id: u64, label: &str, timing: TraceTiming) -> TraceItem {
             ("source".into(), "fixture".into()),
             ("payload".into(), r#"{"ok":true,"count":2}"#.into()),
         ],
+        detail_blocks: vec![],
         children: vec![],
     }
 }
@@ -44,6 +45,7 @@ fn data(items: Vec<TraceItem>) -> TraceData {
             group: Some(GroupId(10)),
             label: "workspace".into(),
             details: vec![],
+            detail_blocks: vec![],
             items,
         }],
     }
@@ -344,6 +346,7 @@ fn trace_vertical_navigation_stays_within_the_selected_track() {
         group: Some(GroupId(10)),
         label: "stage 0".into(),
         details: vec![],
+        detail_blocks: vec![],
         items: vec![item(3, "aunt", TraceTiming::Instant(2))],
     });
     let mut view = TraceView::new(input).unwrap();

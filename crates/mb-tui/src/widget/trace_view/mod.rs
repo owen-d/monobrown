@@ -17,7 +17,7 @@
 //!
 //! ```rust
 //! use mb_tui::widget::trace_view::{
-//!     CategoryId, ItemId, TraceCategory, TraceData, TraceItem, TraceTimeUnit, TraceTiming,
+//!     CategoryId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceItem, TraceTimeUnit, TraceTiming,
 //!     TraceTrack, TraceView, TraceVisualRole, TrackId,
 //! };
 //! let view = TraceView::new(TraceData {
@@ -32,6 +32,7 @@
 //!             id: ItemId(0), category: CategoryId(0), label: "work".into(),
 //!             timing: TraceTiming::Interval { start: 100, end: 120 },
 //!             details: vec![("source".into(), "fixture".into())],
+//!             detail_blocks: vec![],
 //!             children: vec![],
 //!         }],
 //!     }],
@@ -46,8 +47,8 @@ mod render;
 mod state;
 
 pub use data::{
-    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceError, TraceGroup, TraceItem,
-    TraceTimeUnit, TraceTiming, TraceTrack, TraceVisualRole, TrackId,
+    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceError,
+    TraceGroup, TraceItem, TraceTimeUnit, TraceTiming, TraceTrack, TraceVisualRole, TrackId,
 };
 pub use render::{render_trace_view, render_trace_view_mut};
 pub use state::{TraceSearchStatus, TraceView};

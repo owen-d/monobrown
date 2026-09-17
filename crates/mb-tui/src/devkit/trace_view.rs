@@ -6,8 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Scenario, ScenarioCatalog};
 use crate::widget::trace_view::{
-    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceGroup, TraceItem, TraceTimeUnit,
-    TraceTiming, TraceTrack, TraceView, TraceVisualRole, TrackId, render_trace_view,
+    CategoryId, GroupId, ItemId, TraceCategory, TraceData, TraceDetailBlock, TraceGroup,
+    TraceItem, TraceTimeUnit, TraceTiming, TraceTrack, TraceView, TraceVisualRole, TrackId,
+    render_trace_view,
 };
 
 const NEUTRAL: CategoryId = CategoryId(0);
@@ -84,6 +85,7 @@ fn overview() -> TraceView {
                 group: Some(GroupId(0)),
                 label: "query".into(),
                 details: vec![],
+                detail_blocks: vec![],
                 items: vec![
                     item(0, NEUTRAL, "admitted", TraceTiming::Instant(base)),
                     item(
@@ -108,6 +110,7 @@ fn overview() -> TraceView {
                 group: Some(GroupId(0)),
                 label: "stage 0".into(),
                 details: vec![],
+                detail_blocks: vec![],
                 items: vec![
                     item(
                         3,
@@ -160,6 +163,7 @@ fn uncertainty() -> TraceView {
             group: Some(GroupId(0)),
             label: "evidence".into(),
             details: vec![],
+            detail_blocks: vec![],
             items: vec![
                 item(0, NEUTRAL, "observed", TraceTiming::Instant(20)),
                 item(1, FAILURE, "failed", TraceTiming::Instant(20)),
@@ -205,9 +209,33 @@ fn item(id: u64, category: CategoryId, label: &str, timing: TraceTiming) -> Trac
         category,
         label: label.into(),
         timing,
-        details: vec![
-            ("source".into(), "owned fixture".into()),
-            ("payload".into(), r#"{"ok":true,"attempt":2}"#.into()),
+        details: vec![("source".into(), "owned fixture".into())],
+        detail_blocks: vec![
+            TraceDetailBlock::Section {
+                title: "Overview".into(),
+                blocks: vec![
+                    TraceDetailBlock::Attribute {
+                        name: "kind".into(),
+                        value: "scheduled work".into(),
+                    },
+                    TraceDetailBlock::Attribute {
+                        name: "status".into(),
+                        value: "success".into(),
+                    },
+                ],
+            },
+            TraceDetailBlock::Table {
+                title: Some("Scheduling".into()),
+                columns: vec!["stage".into(), "work".into(), "rows".into()],
+                rows: vec![
+                    vec!["3".into(), "partial aggregate".into(), "4".into()],
+                    vec!["4".into(), "hash exchange".into(), "8".into()],
+                ],
+            },
+            TraceDetailBlock::Json {
+                name: "payload".into(),
+                value: r#"{"ok":true,"attempt":2}"#.into(),
+            },
         ],
         children: vec![],
     }

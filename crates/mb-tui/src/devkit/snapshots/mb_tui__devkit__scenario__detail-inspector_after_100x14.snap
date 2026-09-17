@@ -8,11 +8,11 @@ Operation                                   │node: planning                   
     ▾ query  +0ns · 690ms                   │offset: +1ms                                          │
         admitted  +0ns                      │duration: 219ms                                       │
         planning  +1ms · 219ms              │source: owned fixture                                 │
-        completed  +690ms                   │payload:                                              │
-    ▸ stage 0  +40ms · 260ms                │{                                                     │
-                                            │  "attempt": 2,                                       │
-                                            │  "ok": true                                          │
-                                            │}                                                     │
-                                            │~                                                     │
-                                            │~                                                     │
+        completed  +690ms                   │Overview                                              │
+    ▸ stage 0  +40ms · 260ms                │  kind: scheduled work                                │
+                                            │  status: success                                     │
+                                            │Scheduling                                            │
+                                            ││ stage │ work              │ rows │                  │
+                                            │├───────┼───────────────────┼──────┤                  │
+                                            ││ 3     │ partial aggregate │ 4    │                  │
                                             └──────────────────────────────────────────────────────┘

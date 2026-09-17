@@ -70,6 +70,7 @@ mod tests {
                 group: None,
                 label: "worker".into(),
                 details: vec![],
+                detail_blocks: vec![],
                 items: times
                     .iter()
                     .enumerate()
@@ -79,6 +80,7 @@ mod tests {
                         label: "event".into(),
                         timing: TraceTiming::Instant(at),
                         details: vec![],
+                        detail_blocks: vec![],
                         children: vec![],
                     })
                     .collect(),

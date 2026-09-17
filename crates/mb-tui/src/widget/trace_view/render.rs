@@ -7,7 +7,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph, Widget, Wrap};
 
-use super::data::{TraceItem, TraceTiming, TraceVisualRole};
+use super::data::{TraceDetailBlock, TraceItem, TraceTiming, TraceVisualRole};
 use super::state::{TraceSpan, TraceView};
 use crate::render::{
     Constraints, LayoutPagerView, LayoutRenderable, LayoutRenderableItem, Size, centered_rect,
@@ -484,6 +484,11 @@ fn detail_lines(state: &TraceView, kind: TraceSpan) -> Vec<Line<'static>> {
             Style::default().fg(theme::text()),
         )));
     }
+    if let TraceSpan::Track(id) = kind
+        && let Some(track) = state.data().tracks.iter().find(|track| track.id == id)
+    {
+        structured_detail_lines(&track.detail_blocks, 0, &mut lines);
+    }
     if let TraceSpan::Item(id) = kind
         && let Some(item) = state
             .data()
@@ -512,8 +517,125 @@ fn detail_lines(state: &TraceView, kind: TraceSpan) -> Vec<Line<'static>> {
                 )));
             }
         }
+        structured_detail_lines(&item.detail_blocks, 0, &mut lines);
     }
     lines
+}
+
+fn structured_detail_lines(
+    blocks: &[TraceDetailBlock],
+    indent: usize,
+    lines: &mut Vec<Line<'static>>,
+) {
+    let padding = " ".repeat(indent);
+    for block in blocks {
+        match block {
+            TraceDetailBlock::Attribute { name, value }
+            | TraceDetailBlock::Text { name, value } => {
+                lines.push(Line::from(Span::styled(
+                    format!("{padding}{name}: {value}"),
+                    Style::default().fg(theme::text()),
+                )));
+            }
+            TraceDetailBlock::Json { name, value } => {
+                lines.push(Line::from(Span::styled(
+                    format!("{padding}{name}:"),
+                    Style::default()
+                        .fg(theme::focus())
+                        .add_modifier(Modifier::BOLD),
+                )));
+                let rendered = serde_json::from_str::<serde_json::Value>(value)
+                    .ok()
+                    .and_then(|json| serde_json::to_string_pretty(&json).ok())
+                    .unwrap_or_else(|| value.clone());
+                for line in rendered.lines() {
+                    let mut line = json_detail_line(line);
+                    if indent > 0 {
+                        line.spans.insert(0, Span::raw(padding.clone()));
+                    }
+                    lines.push(line);
+                }
+            }
+            TraceDetailBlock::Section { title, blocks } => {
+                lines.push(Line::from(Span::styled(
+                    format!("{padding}{title}"),
+                    Style::default()
+                        .fg(theme::focus())
+                        .add_modifier(Modifier::BOLD),
+                )));
+                structured_detail_lines(blocks, indent + 2, lines);
+            }
+            TraceDetailBlock::Table {
+                title,
+                columns,
+                rows,
+            } => {
+                if let Some(title) = title {
+                    lines.push(Line::from(Span::styled(
+                        format!("{padding}{title}"),
+                        Style::default()
+                            .fg(theme::focus())
+                            .add_modifier(Modifier::BOLD),
+                    )));
+                }
+                table_lines(columns, rows, indent, lines);
+            }
+        }
+    }
+}
+
+fn table_lines(
+    columns: &[String],
+    rows: &[Vec<String>],
+    indent: usize,
+    lines: &mut Vec<Line<'static>>,
+) {
+    if columns.is_empty() {
+        return;
+    }
+    let count = columns.len();
+    let mut widths = columns
+        .iter()
+        .map(|column| column.chars().count().min(24))
+        .collect::<Vec<_>>();
+    for row in rows {
+        for (index, cell) in row.iter().take(count).enumerate() {
+            widths[index] = widths[index].max(cell.chars().count().min(24));
+        }
+    }
+    let padding = " ".repeat(indent);
+    let format_row = |row: &[String]| {
+        let cells = (0..count)
+            .map(|index| {
+                let cell = row.get(index).map_or("", String::as_str);
+                let clipped = cell.chars().take(24).collect::<String>();
+                format!(" {clipped:<width$} ", width = widths[index])
+            })
+            .collect::<Vec<_>>();
+        format!("{padding}│{}│", cells.join("│"))
+    };
+    let separator = format!(
+        "{padding}├{}┤",
+        widths
+            .iter()
+            .map(|width| "─".repeat(width + 2))
+            .collect::<Vec<_>>()
+            .join("┼")
+    );
+    lines.push(Line::from(Span::styled(
+        format_row(columns),
+        Style::default().fg(theme::focus()),
+    )));
+    lines.push(Line::from(Span::styled(
+        separator,
+        Style::default().fg(theme::dim()),
+    )));
+    for row in rows {
+        lines.push(Line::from(Span::styled(
+            format_row(row),
+            Style::default().fg(theme::text()),
+        )));
+    }
 }
 
 fn find_item(items: &[TraceItem], id: super::data::ItemId) -> Option<&TraceItem> {

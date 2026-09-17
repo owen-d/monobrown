@@ -8,11 +8,11 @@ expression: text
 <fg:#a0a0a0>    ▾ query  +0ns · 690ms</>                   <fg:cyan>│</><fg:#a0a0a0>offset: +690ms</><fg:white>                                        </><fg:cyan>│</>
 <fg:#a0a0a0>        admitted  +0ns</>                      <fg:cyan>│</><fg:#a0a0a0>duration: unavailable</><fg:white>                                 </><fg:cyan>│</>
 <fg:cyan>        planning  +1ms · 219ms</>              <fg:cyan>│</><fg:white>source: owned fixture                                 </><fg:cyan>│</>
-<fg:white,bold>        completed  +690ms</>                   <fg:cyan>│</><fg:cyan,bold>payload:</><fg:white>                                              </><fg:cyan>│</>
-<fg:#a0a0a0>    ▸ stage 0  +40ms · 260ms</>                <fg:cyan>│</><fg:white>{                                                     </><fg:cyan>│</>
-                                            <fg:cyan>│  "attempt": 2,</><fg:white>                                       </><fg:cyan>│</>
-                                            <fg:cyan>│  "ok": true</><fg:white>                                          </><fg:cyan>│</>
-                                            <fg:cyan>│</><fg:white>}                                                     </><fg:cyan>│</>
-                                            <fg:cyan>│</>~                                                     <fg:cyan>│</>
-                                            <fg:cyan>│</>~                                                     <fg:cyan>│</>
+<fg:white,bold>        completed  +690ms</>                   <fg:cyan>│</><fg:cyan,bold>Overview</><fg:white>                                              </><fg:cyan>│</>
+<fg:#a0a0a0>    ▸ stage 0  +40ms · 260ms</>                <fg:cyan>│</><fg:white>  kind: scheduled work                                </><fg:cyan>│</>
+                                            <fg:cyan>│</><fg:white>  status: success                                     </><fg:cyan>│</>
+                                            <fg:cyan>│</><fg:cyan,bold>Scheduling</><fg:white>                                            </><fg:cyan>│</>
+                                            <fg:cyan>││ stage │ work              │ rows │</><fg:white>                  </><fg:cyan>│</>
+                                            <fg:cyan>│</><fg:#a0a0a0>├───────┼───────────────────┼──────┤</><fg:white>                  </><fg:cyan>│</>
+                                            <fg:cyan>│</><fg:white>│ 3     │ partial aggregate │ 4    │                  </><fg:cyan>│</>
                                             <fg:cyan>└──────────────────────────────────────────────────────┘</>
