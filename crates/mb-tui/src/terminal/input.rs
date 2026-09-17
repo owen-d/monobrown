@@ -49,7 +49,15 @@ impl InputDemux {
 
     /// Flush a partial keyboard sequence at the end of the bounded probe.
     pub(crate) fn finish(&mut self) {
-        self.flush_candidate();
+        // Never replay an incomplete OSC 11 response. termwiz quite
+        // reasonably ignores the control prefix but can expose the payload
+        // (for example `2c2c/3434`) as ordinary text, which then appears as
+        // a phantom search query in the first rendered frame.
+        if self.collecting_probe_response() {
+            self.candidate.clear();
+        } else {
+            self.flush_candidate();
+        }
         let mut events = Vec::new();
         self.parser.parse(&[], |event| events.push(event), false);
         for event in events {
@@ -59,6 +67,11 @@ impl InputDemux {
 
     pub(crate) fn response(&self) -> Option<&[u8]> {
         self.response.as_deref()
+    }
+
+    /// Whether an OSC 11 response has started but not terminated.
+    pub(crate) fn collecting_probe_response(&self) -> bool {
+        self.response.is_none() && self.candidate.starts_with(b"\x1b]11;")
     }
 
     pub(crate) fn into_events(self) -> Vec<Event> {
@@ -264,5 +277,14 @@ mod tests {
         demux.feed(b"ff/ff\x1b\\");
         demux.finish();
         assert_eq!(demux.response(), Some(&b"\x1b]11;rgb:ff/ff/ff\x1b\\"[..]));
+    }
+
+    #[test]
+    fn drops_incomplete_probe_payload_at_finish() {
+        let mut demux = InputDemux::new();
+        demux.feed(b"\x1b]11;rgb:2c2c/3434");
+        assert!(demux.collecting_probe_response());
+        demux.finish();
+        assert!(demux.into_events().is_empty());
     }
 }

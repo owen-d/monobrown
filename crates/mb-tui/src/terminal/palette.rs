@@ -17,6 +17,7 @@ use super::input::InputDemux;
 
 const QUERY: &[u8] = b"\x1b]11;?\x1b\\";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(200);
+const PROBE_DRAIN_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Result of the startup probe, including input typed while it was pending.
 #[derive(Debug, Default)]
@@ -111,6 +112,38 @@ fn probe_background_unix() -> ProbeResult {
             Ok(read) => demux.feed(&buffer[..read]),
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(_) => break,
+        }
+    }
+
+    // If the terminal began its OSC response just before the main deadline,
+    // keep the probe reader for a short bounded grace period. Without this,
+    // the response tail can be consumed by crossterm and appear as literal
+    // keyboard input (notably a phantom `/2c2c/3434` search query).
+    if demux.collecting_probe_response() {
+        let deadline = std::time::Instant::now() + PROBE_DRAIN_TIMEOUT;
+        while demux.response().is_none() {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
+            let mut poll_fd = libc::pollfd {
+                fd,
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            // SAFETY: `poll_fd` points to one valid tty descriptor and the
+            // timeout is bounded. No memory is retained by libc after call.
+            let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
+            if ready <= 0 || (poll_fd.revents & libc::POLLIN) == 0 {
+                break;
+            }
+            match tty.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => demux.feed(&buffer[..read]),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(_) => break,
+            }
         }
     }
 
