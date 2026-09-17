@@ -5,26 +5,23 @@
 //! probe and keyboard input therefore have one reader and cannot race. Bytes
 //! that arrive while the terminal replies are buffered as regular events.
 
-use std::fs::OpenOptions;
-use std::io::{self, Read, Write};
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
 use std::time::Duration;
 
-use crossterm::event::Event;
+#[cfg(unix)]
+use super::input::InputReader;
 
-use super::input::InputDemux;
-
-const QUERY: &[u8] = b"\x1b]11;?\x1b\\";
+// Pair optional OSC 11 with primary device attributes. Terminal emulators
+// and multiplexers preserve response FIFO order.
+const QUERY: &[u8] = b"\x1b]11;?\x1b\\\x1b[c";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(200);
-const PROBE_DRAIN_TIMEOUT: Duration = Duration::from_millis(100);
 
-/// Result of the startup probe, including input typed while it was pending.
+/// Result of the startup probe and the parser that owns the tty afterward.
 #[derive(Debug, Default)]
 pub(crate) struct ProbeResult {
     pub(crate) rgb: Option<(u8, u8, u8)>,
     pub(crate) palette: Option<crate::theme::palette::Palette>,
-    pub(crate) pending_events: Vec<Event>,
+    #[cfg(unix)]
+    pub(crate) input: Option<InputReader>,
 }
 
 /// Detect the terminal background through OSC 11 on Unix.
@@ -76,86 +73,35 @@ pub(crate) fn probe_background() -> ProbeResult {
 
 #[cfg(unix)]
 fn probe_background_unix() -> ProbeResult {
-    let mut tty = match OpenOptions::new().read(true).write(true).open("/dev/tty") {
-        Ok(tty) => tty,
+    let mut input = match InputReader::open() {
+        Ok(input) => input,
         Err(_) => return ProbeResult::default(),
     };
 
-    if tty.write_all(QUERY).and_then(|_| tty.flush()).is_err() {
+    if input.write_all(QUERY).is_err() {
         return ProbeResult::default();
     }
 
-    let fd = tty.as_raw_fd();
-    let mut demux = InputDemux::new();
-    let mut buffer = [0_u8; 256];
     let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
 
-    while demux.response().is_none() {
+    while !input.device_attributes() {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         if remaining.is_zero() {
             break;
         }
-        let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
-        let mut poll_fd = libc::pollfd {
-            fd,
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        // SAFETY: `poll_fd` points to one valid tty descriptor and the timeout
-        // is bounded. No memory is retained by libc after the call returns.
-        let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
-        if ready <= 0 || (poll_fd.revents & libc::POLLIN) == 0 {
+        if input.poll_read(remaining).is_err() {
             break;
         }
-        match tty.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(read) => demux.feed(&buffer[..read]),
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(_) => break,
-        }
     }
 
-    // If the terminal began its OSC response just before the main deadline,
-    // keep the probe reader for a short bounded grace period. Without this,
-    // the response tail can be consumed by crossterm and appear as literal
-    // keyboard input (notably a phantom `/2c2c/3434` search query).
-    if demux.collecting_probe_response() {
-        let deadline = std::time::Instant::now() + PROBE_DRAIN_TIMEOUT;
-        while demux.response().is_none() {
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            if remaining.is_zero() {
-                break;
-            }
-            let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
-            let mut poll_fd = libc::pollfd {
-                fd,
-                events: libc::POLLIN,
-                revents: 0,
-            };
-            // SAFETY: `poll_fd` points to one valid tty descriptor and the
-            // timeout is bounded. No memory is retained by libc after call.
-            let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
-            if ready <= 0 || (poll_fd.revents & libc::POLLIN) == 0 {
-                break;
-            }
-            match tty.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(read) => demux.feed(&buffer[..read]),
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                Err(_) => break,
-            }
-        }
-    }
-
-    demux.finish();
-    let rgb = demux.response().and_then(parse_response);
+    let rgb = input.response().and_then(parse_response);
     let palette =
         rgb.map(|(red, green, blue)| crate::theme::palette::Palette::from_rgb(red, green, blue));
 
     ProbeResult {
         rgb,
         palette,
-        pending_events: demux.into_events(),
+        input: Some(input),
     }
 }
 

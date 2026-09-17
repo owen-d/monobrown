@@ -5,7 +5,6 @@
 //! it owns terminal input, then restores the terminal on every ordinary return
 //! and unwind path.
 
-use std::collections::VecDeque;
 use std::io::{self, IsTerminal};
 use std::time::Duration;
 
@@ -17,6 +16,8 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
 mod input;
+#[cfg(unix)]
+use input::InputReader;
 /// Optional terminal-owned palette probing.
 pub mod palette;
 
@@ -30,7 +31,8 @@ pub mod palette;
 /// sessions would manipulate the same process terminal state.
 pub struct TuiSession {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
-    pending_events: VecDeque<Event>,
+    #[cfg(unix)]
+    input: Option<InputReader>,
     _restore: TerminalRestore,
 }
 
@@ -70,17 +72,15 @@ impl TuiSession {
         let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
 
-        let mut session = Self {
+        let probe = palette::probe_background();
+
+        let session = Self {
             terminal,
-            pending_events: VecDeque::new(),
+            #[cfg(unix)]
+            input: probe.input,
             _restore: restore,
         };
 
-        // The session is the sole owner of terminal input during startup. The
-        // probe demultiplexes the OSC response from any keys typed while it is
-        // waiting, so the normal crossterm reader never sees probe bytes.
-        let probe = palette::probe_background();
-        session.pending_events.extend(probe.pending_events);
         if let Some(palette) = probe.palette {
             crate::theme::palette::set(palette);
         }
@@ -93,18 +93,20 @@ impl TuiSession {
         &mut self.terminal
     }
 
-    /// Poll for the next input event, including events buffered during startup.
+    /// Poll for the next input event through the session-owned byte parser.
     pub fn poll_event(&mut self, timeout: Duration) -> io::Result<bool> {
-        if !self.pending_events.is_empty() {
-            return Ok(true);
+        #[cfg(unix)]
+        if let Some(input) = self.input.as_mut() {
+            return input.poll_event(timeout);
         }
         event::poll(timeout)
     }
 
-    /// Read the next input event, draining startup input before the tty.
+    /// Read the next input event through the session-owned byte parser.
     pub fn read_event(&mut self) -> io::Result<Event> {
-        if let Some(event) = self.pending_events.pop_front() {
-            return Ok(event);
+        #[cfg(unix)]
+        if let Some(input) = self.input.as_mut() {
+            return input.read_event();
         }
         event::read()
     }

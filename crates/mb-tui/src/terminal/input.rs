@@ -1,11 +1,19 @@
-//! Startup input demultiplexing for terminal capability probes.
+//! Terminal input demultiplexing for capability probes and keyboard input.
 //!
 //! Terminal replies and keyboard input share one byte stream. [`InputDemux`]
-//! removes the OSC 11 reply while decoding all other bytes into crossterm
-//! events that can be replayed after startup. It is deliberately independent
-//! of file descriptors so its framing behavior can be tested without a tty.
+//! removes terminal capability replies while decoding all other bytes into
+//! crossterm events. It is deliberately independent of file descriptors so
+//! its framing behavior can be tested without a tty.
 
 use std::collections::VecDeque;
+#[cfg(unix)]
+use std::fs::OpenOptions;
+use std::io;
+#[cfg(unix)]
+use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+use std::time::Duration;
 
 use crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent,
@@ -15,6 +23,9 @@ use termwiz::input::{InputEvent, InputParser, KeyCode as TermKeyCode, Modifiers}
 
 const MAX_CONTROL_SEQUENCE: usize = 128;
 
+#[cfg(unix)]
+const READ_BUFFER_SIZE: usize = 256;
+
 /// Input collected while a terminal capability probe is in flight.
 #[derive(Debug)]
 pub(crate) struct InputDemux {
@@ -22,6 +33,116 @@ pub(crate) struct InputDemux {
     candidate: Vec<u8>,
     events: VecDeque<Event>,
     response: Option<Vec<u8>>,
+    device_attributes: bool,
+}
+
+/// Sole owner of the tty input stream for an interactive session.
+#[cfg(unix)]
+#[derive(Debug)]
+pub(crate) struct InputReader {
+    tty: std::fs::File,
+    demux: InputDemux,
+    buffer: [u8; READ_BUFFER_SIZE],
+}
+
+#[cfg(unix)]
+impl InputReader {
+    pub(crate) fn open() -> io::Result<Self> {
+        Ok(Self {
+            tty: OpenOptions::new().read(true).write(true).open("/dev/tty")?,
+            demux: InputDemux::new(),
+            buffer: [0; READ_BUFFER_SIZE],
+        })
+    }
+
+    pub(crate) fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.tty.write_all(bytes)?;
+        self.tty.flush()
+    }
+
+    pub(crate) fn response(&self) -> Option<&[u8]> {
+        self.demux.response()
+    }
+
+    pub(crate) fn device_attributes(&self) -> bool {
+        self.demux.device_attributes()
+    }
+
+    pub(crate) fn poll_event(&mut self, timeout: Duration) -> io::Result<bool> {
+        if self.demux.has_events() {
+            return Ok(true);
+        }
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                return Ok(false);
+            }
+            let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
+            let mut poll_fd = libc::pollfd {
+                fd: self.tty.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            // SAFETY: `poll_fd` points to one valid tty descriptor and the
+            // timeout is bounded. No memory is retained by libc after call.
+            let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
+            if ready < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            if ready == 0 || (poll_fd.revents & libc::POLLIN) == 0 {
+                return Ok(false);
+            }
+            let read = self.tty.read(&mut self.buffer)?;
+            if read == 0 {
+                return Ok(false);
+            }
+            self.demux.feed(&self.buffer[..read]);
+            if self.demux.has_events() {
+                return Ok(true);
+            }
+        }
+    }
+
+    pub(crate) fn read_event(&mut self) -> io::Result<Event> {
+        loop {
+            if let Some(event) = self.demux.pop_event() {
+                return Ok(event);
+            }
+            let read = self.tty.read(&mut self.buffer)?;
+            if read == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "terminal input reached EOF",
+                ));
+            }
+            self.demux.feed(&self.buffer[..read]);
+        }
+    }
+
+    pub(crate) fn poll_read(&mut self, timeout: Duration) -> io::Result<bool> {
+        let timeout_ms = timeout.as_millis().min(i32::MAX as u128) as i32;
+        let mut poll_fd = libc::pollfd {
+            fd: self.tty.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: `poll_fd` points to one valid tty descriptor and the
+        // timeout is bounded. No memory is retained by libc after call.
+        let ready = unsafe { libc::poll(&mut poll_fd, 1, timeout_ms) };
+        if ready < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if ready == 0 || (poll_fd.revents & libc::POLLIN) == 0 {
+            return Ok(false);
+        }
+        let read = self.tty.read(&mut self.buffer)?;
+        if read == 0 {
+            return Ok(false);
+        }
+        self.demux.feed(&self.buffer[..read]);
+        Ok(true)
+    }
 }
 
 impl Default for InputDemux {
@@ -31,6 +152,7 @@ impl Default for InputDemux {
             candidate: Vec::new(),
             events: VecDeque::new(),
             response: None,
+            device_attributes: false,
         }
     }
 }
@@ -47,13 +169,13 @@ impl InputDemux {
         }
     }
 
-    /// Flush a partial keyboard sequence at the end of the bounded probe.
+    /// Flush a partial keyboard sequence at the end of a read batch.
+    #[cfg(test)]
     pub(crate) fn finish(&mut self) {
-        // Never replay an incomplete OSC 11 response. termwiz quite
-        // reasonably ignores the control prefix but can expose the payload
-        // (for example `2c2c/3434`) as ordinary text, which then appears as
-        // a phantom search query in the first rendered frame.
-        if self.collecting_probe_response() {
+        // Never replay an incomplete capability response. termwiz quite
+        // reasonably ignores the control prefix but can expose its payload
+        // as ordinary text, which then appears as phantom keyboard input.
+        if self.collecting_probe_response() || self.collecting_device_attributes() {
             self.candidate.clear();
         } else {
             self.flush_candidate();
@@ -69,21 +191,35 @@ impl InputDemux {
         self.response.as_deref()
     }
 
+    pub(crate) fn device_attributes(&self) -> bool {
+        self.device_attributes
+    }
+
     /// Whether an OSC 11 response has started but not terminated.
+    #[cfg(test)]
     pub(crate) fn collecting_probe_response(&self) -> bool {
         self.response.is_none() && self.candidate.starts_with(b"\x1b]11;")
     }
 
+    #[cfg(test)]
+    fn collecting_device_attributes(&self) -> bool {
+        self.candidate.starts_with(b"\x1b[") && !self.device_attributes
+    }
+
+    #[cfg(test)]
     pub(crate) fn into_events(self) -> Vec<Event> {
         self.events.into_iter().collect()
     }
 
-    fn feed_byte(&mut self, byte: u8) {
-        if self.response.is_some() {
-            self.feed_keyboard(&[byte]);
-            return;
-        }
+    pub(crate) fn has_events(&self) -> bool {
+        !self.events.is_empty()
+    }
 
+    pub(crate) fn pop_event(&mut self) -> Option<Event> {
+        self.events.pop_front()
+    }
+
+    fn feed_byte(&mut self, byte: u8) {
         if self.candidate.is_empty() {
             if byte == 0x1b {
                 self.candidate.push(byte);
@@ -95,7 +231,7 @@ impl InputDemux {
 
         self.candidate.push(byte);
 
-        if self.candidate == [0x1b, b']'] {
+        if self.candidate == [0x1b, b']'] || self.candidate == [0x1b, b'['] {
             return;
         }
 
@@ -109,6 +245,19 @@ impl InputDemux {
             if byte == 0x07 || (len >= 2 && self.candidate[len - 2..] == [0x1b, b'\\']) {
                 self.response = Some(std::mem::take(&mut self.candidate));
             } else if len > MAX_CONTROL_SEQUENCE {
+                self.candidate.clear();
+            }
+            return;
+        }
+
+        if self.candidate.starts_with(b"\x1b[") {
+            if byte == b'c'
+                && self.candidate.len() >= 3
+                && (self.candidate[2] == b'?' || self.candidate[2].is_ascii_digit())
+            {
+                self.device_attributes = true;
+                self.candidate.clear();
+            } else if self.candidate.len() > MAX_CONTROL_SEQUENCE {
                 self.flush_candidate();
             }
             return;
@@ -236,13 +385,14 @@ mod tests {
     #[test]
     fn removes_osc_reply_and_preserves_keyboard_input() {
         let mut demux = InputDemux::new();
-        demux.feed(b"a\x1b]11;rgb:ffff/ffff/ffff\x1b\\b");
+        demux.feed(b"a\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62;1;2cb");
         demux.finish();
 
         assert_eq!(
             demux.response(),
             Some(&b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\"[..])
         );
+        assert!(demux.device_attributes());
         let events = demux.into_events();
         assert_eq!(events.len(), 2);
         assert!(matches!(
@@ -285,6 +435,17 @@ mod tests {
         demux.feed(b"\x1b]11;rgb:2c2c/3434");
         assert!(demux.collecting_probe_response());
         demux.finish();
+        assert!(demux.into_events().is_empty());
+    }
+
+    #[test]
+    fn consumes_a_late_device_attributes_reply_without_leaking_payload() {
+        let mut demux = InputDemux::new();
+        demux.feed(b"\x1b[?62;1;2c");
+        demux.feed(b"\x1b]11;rgb:2c2c/3434/3c3c\x1b\\");
+        demux.finish();
+        assert!(demux.device_attributes());
+        assert!(demux.response().is_some());
         assert!(demux.into_events().is_empty());
     }
 }
